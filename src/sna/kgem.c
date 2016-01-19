@@ -5070,6 +5070,7 @@ struct kgem_bo *kgem_create_linear(struct kgem *kgem, int size, unsigned flags)
 
 int kgem_choose_tiling(struct kgem *kgem, int tiling, int width, int height, int bpp)
 {
+	return I915_TILING_Y;
 	if (DBG_NO_TILING)
 		return tiling < 0 ? tiling : I915_TILING_NONE;
 
