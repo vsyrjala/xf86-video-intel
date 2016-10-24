@@ -3298,7 +3298,7 @@ static int plane_details(struct sna *sna, struct plane *p)
 	uint64_t *values = stack_props + 8;
 	int i, type = DRM_PLANE_TYPE_OVERLAY;
 
-	memset(&arg, 0, sizeof(struct local_mode_obj_get_properties));
+	memset(&arg, 0, sizeof(arg));
 	arg.obj_id = p->id;
 	arg.obj_type = LOCAL_MODE_OBJECT_PLANE;
 
