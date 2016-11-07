@@ -278,14 +278,26 @@ sna_video_sprite_show(struct sna *sna,
 			uint32_t handles[4];
 			uint32_t pitches[4]; /* pitch for each plane */
 			uint32_t offsets[4]; /* offset of each plane */
+			uint64_t modifiers[4]; /* modifier of each plane */
 		} f;
 		bool purged = true;
 
 		memset(&f, 0, sizeof(f));
+		f.flags = 1 << 1; /* + modifier */
 		f.width = frame->width;
 		f.height = frame->height;
 		f.handles[0] = frame->bo->handle;
 		f.pitches[0] = frame->pitch[0];
+		switch (frame->bo->tiling) {
+		case I915_TILING_Y:
+			f.modifiers[0] = (uint64_t)1 << 56 | 2; /* MOD_Y_TILED */
+			break;
+		case I915_TILING_X:
+			f.modifiers[0] = (uint64_t)1 << 56 | 1; /* MOD_X_TILED */
+			break;
+		default:
+			break;
+		}
 
 		switch (frame->id) {
 		case FOURCC_RGB565:
