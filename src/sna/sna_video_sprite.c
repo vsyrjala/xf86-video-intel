@@ -381,9 +381,12 @@ static int sna_video_sprite_put_image(ddPutImage_ARGS)
 	struct sna *sna = video->sna;
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(sna->scrn);
 	RegionRec clip;
+	BoxRec orig_dst;
 	int ret, i;
 
 	init_video_region(&clip, draw, drw_x, drw_y, drw_w, drw_h);
+
+	orig_dst = clip.extents;
 
 	DBG(("%s: always_on_top=%d\n", __FUNCTION__, video->AlwaysOnTop));
 	if (!video->AlwaysOnTop) {
@@ -444,7 +447,7 @@ off:
 		y1 = src_y;
 		y2 = src_y + src_h;
 
-		dst = clip.extents;
+		dst = orig_dst;
 
 		ret = xf86XVClipVideoHelper(&dst, &x1, &x2, &y1, &y2,
 					    &reg, frame.width, frame.height);
