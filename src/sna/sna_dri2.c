@@ -2126,7 +2126,7 @@ can_flip(struct sna * sna,
 	}
 
 	/* prevent an implicit tiling mode change */
-	if (get_private(back)->bo->tiling > I915_TILING_X) {
+	if (get_private(front)->bo->tiling != get_private(back)->bo->tiling) {
 		DBG(("%s -- no, tiling mismatch: front %d, back=%d, want-tiled?=%d\n",
 		     __FUNCTION__,
 		     get_private(front)->bo->tiling,
