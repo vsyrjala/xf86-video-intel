@@ -411,6 +411,8 @@ static inline void kgem_bo_destroy(struct kgem *kgem, struct kgem_bo *bo)
 
 void kgem_clear_dirty(struct kgem *kgem);
 
+bool kgem_addfb(struct kgem *kgem, struct drm_mode_fb_cmd *arg, int tiling);
+
 static inline void kgem_set_mode(struct kgem *kgem,
 				 enum kgem_mode mode,
 				 struct kgem_bo *bo)

@@ -1466,6 +1466,87 @@ static bool gem_set_tiling(int fd, uint32_t handle, int tiling, int stride)
 	return false;
 }
 
+#define LOCAL_IOCTL_MODE_ADDFB2 DRM_IOWR(0xb8, struct local_mode_fb_cmd2)
+
+struct local_mode_fb_cmd2 {
+	uint32_t fb_id;
+	uint32_t width, height;
+	uint32_t pixel_format;
+	uint32_t flags;
+	uint32_t handles[4];
+	uint32_t pitches[4];
+	uint32_t offsets[4];
+	uint64_t modifiers[4];
+};
+
+static uint32_t depth_to_format(int depth)
+{
+#define fourcc(a,b,c,d) ((a) | (b) << 8 | (c) << 16 | (d) << 24)
+
+	switch (depth) {
+	case 8:
+		return fourcc('C', '8', ' ', ' ');
+	case 15:
+		return fourcc('X', 'R', '1', '5');
+	case 16:
+		return fourcc('R', 'G', '1', '6');
+	default:
+	case 24:
+		return fourcc('X', 'R', '2', '4');
+	case 30:
+		return fourcc('X', 'R', '3', '0');
+	case 32:
+		return fourcc('A', 'R', '2', '4');
+	}
+
+#undef fourcc
+}
+
+static uint64_t tiling_to_modifier(int tiling)
+{
+	switch (tiling) {
+	default:
+	case I915_TILING_NONE:
+		return 0;
+	case I915_TILING_X:
+		return 1ULL << 56 | 1;
+	case I915_TILING_Y:
+		return 1ULL << 56 | 2;
+	}
+}
+
+static void addfb_to_addfb2(struct local_mode_fb_cmd2 *cmd2,
+			    const struct drm_mode_fb_cmd *cmd,
+			    unsigned int tiling)
+{
+	memset(cmd2, 0, sizeof(*cmd2));
+
+	cmd2->width = cmd->width;
+	cmd2->height = cmd->height;
+	cmd2->pixel_format = depth_to_format(cmd->depth);
+
+	cmd2->handles[0] = cmd->handle;
+	cmd2->offsets[0] = 0;
+	cmd2->pitches[0] = cmd->pitch;
+
+	cmd2->flags = 1 << 1;
+	cmd2->modifiers[0] = tiling_to_modifier(tiling);
+}
+
+bool kgem_addfb(struct kgem *kgem, struct drm_mode_fb_cmd *arg, int tiling)
+{
+	struct local_mode_fb_cmd2 arg2;
+
+	addfb_to_addfb2(&arg2, arg, tiling);
+
+	if (do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB2, &arg2) == 0) {
+		arg->fb_id = arg2.fb_id;
+		return true;
+	}
+
+	return do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, arg) == 0;
+}
+
 static bool test_can_scanout_y(struct kgem *kgem)
 {
 	struct drm_mode_fb_cmd arg;
@@ -1483,33 +1564,8 @@ static bool test_can_scanout_y(struct kgem *kgem)
 	arg.handle = gem_create(kgem->fd, 1);
 
 	if (gem_set_tiling(kgem->fd, arg.handle, I915_TILING_Y, arg.pitch))
-		ret = do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, &arg) == 0;
-	if (!ret) {
-		struct local_mode_fb_cmd2 {
-			uint32_t fb_id;
-			uint32_t width, height;
-			uint32_t pixel_format;
-			uint32_t flags;
+		ret = kgem_addfb(kgem, &arg, I915_TILING_Y);
 
-			uint32_t handles[4];
-			uint32_t pitches[4];
-			uint32_t offsets[4];
-			uint64_t modifiers[4];
-		} f;
-#define LOCAL_IOCTL_MODE_ADDFB2 DRM_IOWR(0xb8, struct local_mode_fb_cmd2)
-		memset(&f, 0, sizeof(f));
-		f.width = arg.width;
-		f.height = arg.height;
-		f.handles[0] = arg.handle;
-		f.pitches[0] = arg.pitch;
-		f.modifiers[0] = (uint64_t)1 << 56 | 2; /* MOD_Y_TILED */
-		f.pixel_format = 'X' | 'R' << 8 | '2' << 16 | '4' << 24; /* XRGB8888 */
-		f.flags = 1 << 1; /* + modifier */
-		if (drmIoctl(kgem->fd, LOCAL_IOCTL_MODE_ADDFB2, &f) == 0) {
-			ret = true;
-			arg.fb_id = f.fb_id;
-		}
-	}
 	do_ioctl(kgem->fd, DRM_IOCTL_MODE_RMFB, &arg.fb_id);
 	gem_close(kgem->fd, arg.handle);
 
@@ -1529,12 +1585,12 @@ static bool test_has_dirtyfb(struct kgem *kgem)
 	create.height = 32;
 	create.pitch = 4*32;
 	create.bpp = 32;
-	create.depth = 32;
+	create.depth = 24;
 	create.handle = gem_create(kgem->fd, 1);
 	if (create.handle == 0)
 		return false;
 
-	if (drmIoctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, &create) == 0) {
+	if (kgem_addfb(kgem, &create, I915_TILING_NONE)) {
 		struct drm_mode_fb_dirty_cmd dirty;
 
 		memset(&dirty, 0, sizeof(dirty));
@@ -5309,7 +5365,7 @@ static void __kgem_bo_make_scanout(struct kgem *kgem,
 		bo->domain = DOMAIN_GTT;
 	}
 
-	if (do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, &arg) == 0) {
+	if (kgem_addfb(kgem, &arg, bo->tiling)) {
 		DBG(("%s: attached fb=%d to handle=%d\n",
 		     __FUNCTION__, arg.fb_id, arg.handle));
 		bo->delta = arg.fb_id;
@@ -5479,7 +5535,7 @@ struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 				arg.depth = scrn->depth;
 				arg.handle = bo->handle;
 
-				if (do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, &arg)) {
+				if (!kgem_addfb(kgem, &arg, bo->tiling)) {
 					kgem_bo_free(kgem, bo);
 					break;
 				}
