@@ -630,6 +630,7 @@ static inline void sna_present_cancel_flip(struct sna *sna) { }
 
 extern unsigned sna_crtc_count_sprites(xf86CrtcPtr crtc);
 extern bool sna_crtc_set_sprite_rotation(xf86CrtcPtr crtc, unsigned idx, uint32_t rotation);
+extern void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc, unsigned idx, int colorspace);
 extern uint32_t sna_crtc_to_sprite(xf86CrtcPtr crtc, unsigned idx);
 extern bool sna_crtc_is_transformed(xf86CrtcPtr crtc);
 

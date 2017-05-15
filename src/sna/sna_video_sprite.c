@@ -67,11 +67,12 @@ struct local_mode_set_plane {
 
 #define MAKE_ATOM(a) MakeAtom(a, sizeof(a) - 1, true)
 
-static Atom xvColorKey, xvAlwaysOnTop, xvSyncToVblank;
+static Atom xvColorKey, xvAlwaysOnTop, xvSyncToVblank, xvColorspace;
 
 static XvFormatRec formats[] = { {15}, {16}, {24} };
 static const XvImageRec images[] = { XVIMAGE_YUY2, XVIMAGE_UYVY, XVMC_RGB888, XVMC_RGB565 };
 static const XvAttributeRec attribs[] = {
+	{ XvSettable | XvGettable, 0, 1, (char *)"XV_COLORSPACE" }, /* BT.601, BT.709 */
 	{ XvSettable | XvGettable, 0, 0xffffff, (char *)"XV_COLORKEY" },
 	{ XvSettable | XvGettable, 0, 1, (char *)"XV_ALWAYS_ON_TOP" },
 };
@@ -117,6 +118,10 @@ static int sna_video_sprite_set_attr(ddSetPortAttribute_ARGS)
 		video->color_key = value;
 		RegionEmpty(&video->clip);
 		DBG(("COLORKEY = %ld\n", (long)value));
+	} else if (attribute == xvColorspace) {
+		video->colorspace_changed = ~0;
+		video->colorspace = value;
+		DBG(("COLORSPACE = %ld\n", (long)value));
 	} else if (attribute == xvSyncToVblank) {
 		DBG(("%s: SYNC_TO_VBLANK: %d -> %d\n", __FUNCTION__,
 		     video->SyncToVblank, !!value));
@@ -138,6 +143,8 @@ static int sna_video_sprite_get_attr(ddGetPortAttribute_ARGS)
 
 	if (attribute == xvColorKey)
 		*value = video->color_key;
+	else if (attribute == xvColorspace)
+		*value = video->colorspace;
 	else if (attribute == xvAlwaysOnTop)
 		*value = video->AlwaysOnTop;
 	else if (attribute == xvSyncToVblank)
@@ -261,6 +268,16 @@ sna_video_sprite_show(struct sna *sna,
 		}
 
 		video->color_key_changed &= ~(1 << pipe);
+	}
+
+	if (video->colorspace_changed & (1 << pipe)) {
+		DBG(("%s: updating colorspace: %x\n",
+		     __FUNCTION__, video->colorspace));
+
+		sna_crtc_set_sprite_colorspace(crtc, video->idx,
+					       video->colorspace);
+
+		video->colorspace_changed &= ~(1 << pipe);
 	}
 
 	update_dst_box_to_crtc_coords(sna, crtc, dstBox);
@@ -767,6 +784,8 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 		video->alignment = 64;
 		video->color_key = sna_video_sprite_color_key(sna);
 		video->color_key_changed = ~0;
+		video->colorspace = 1; /* BT.709 */
+		video->colorspace_changed = ~0;
 		video->has_color_key = true;
 		video->brightness = -19;	/* (255/219) * -16 */
 		video->contrast = 75;	/* 255/219 * 64 */
@@ -787,6 +806,7 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 	adaptor->base_id = adaptor->pPorts[0].id;
 
 	xvColorKey = MAKE_ATOM("XV_COLORKEY");
+	xvColorspace = MAKE_ATOM("XV_COLORSPACE");
 	xvAlwaysOnTop = MAKE_ATOM("XV_ALWAYS_ON_TOP");
 	xvSyncToVblank = MAKE_ATOM("XV_SYNC_TO_VBLANK");
 

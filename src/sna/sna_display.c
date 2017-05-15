@@ -222,6 +222,10 @@ struct sna_crtc {
 			uint32_t supported;
 			uint32_t current;
 		} rotation;
+		struct {
+			uint32_t prop;
+			uint64_t values[2];
+		} color_encoding;
 		struct list link;
 	} primary;
 	struct list sprites;
@@ -3282,15 +3286,122 @@ static const xf86CrtcFuncsRec sna_crtc_funcs = {
 #endif
 };
 
-inline static bool prop_is_rotation(struct drm_mode_get_property *prop)
+inline static bool prop_has_type_and_name(const struct drm_mode_get_property *prop,
+					  unsigned int type, const char *name)
 {
-	if ((prop->flags & (1 << 5)) == 0)
+	if ((prop->flags & (1 << type)) == 0)
 		return false;
 
-	if (strcmp(prop->name, "rotation"))
+	if (strcmp(prop->name, name))
 		return false;
 
 	return true;
+}
+
+inline static bool prop_is_rotation(const struct drm_mode_get_property *prop)
+{
+	return prop_has_type_and_name(prop, 5, "rotation");
+}
+
+static void parse_rotation_prop(struct sna *sna, struct plane *p,
+				struct drm_mode_get_property *prop,
+				uint64_t value)
+{
+	struct drm_mode_property_enum *enums;
+	int j;
+
+	p->rotation.prop = prop->prop_id;
+	p->rotation.current = value;
+
+	DBG(("%s: found rotation property .id=%d, value=%ld, num_enums=%d\n",
+	     __FUNCTION__, prop->prop_id, value, prop->count_enum_blobs));
+
+	enums = malloc(prop->count_enum_blobs * sizeof(struct drm_mode_property_enum));
+	if (!enums)
+		return;
+
+	prop->count_values = 0;
+	prop->enum_blob_ptr = (uintptr_t)enums;
+
+	if (drmIoctl(sna->kgem.fd, DRM_IOCTL_MODE_GETPROPERTY, prop)) {
+		free(enums);
+		return;
+	}
+
+	/* XXX we assume that the mapping between kernel enum and
+	 * RandR remains fixed for our lifetimes.
+	 */
+	VG(VALGRIND_MAKE_MEM_DEFINED(enums, sizeof(*enums)*prop->count_enum_blobs));
+	for (j = 0; j < prop->count_enum_blobs; j++) {
+		DBG(("%s: rotation[%d] = %s [%lx]\n", __FUNCTION__,
+		     j, enums[j].name, (long)enums[j].value));
+		p->rotation.supported |= 1 << enums[j].value;
+	}
+
+	free(enums);
+}
+
+inline static bool prop_is_color_encoding(const struct drm_mode_get_property *prop)
+{
+	return prop_has_type_and_name(prop, 3, "COLOR_ENCODING");
+}
+
+static void parse_color_encoding_prop(struct sna *sna, struct plane *p,
+				      struct drm_mode_get_property *prop,
+				      uint64_t value)
+{
+	struct drm_mode_property_enum *enums;
+	unsigned int supported = 0;
+	int j;
+
+	DBG(("%s: found color encoding property .id=%d, value=%ld, num_enums=%d\n",
+	     __FUNCTION__, prop->prop_id, (long)value, prop->count_enum_blobs));
+
+	enums = malloc(prop->count_enum_blobs * sizeof(struct drm_mode_property_enum));
+	if (!enums)
+		return;
+
+	prop->count_values = 0;
+	prop->enum_blob_ptr = (uintptr_t)enums;
+
+	if (drmIoctl(sna->kgem.fd, DRM_IOCTL_MODE_GETPROPERTY, prop)) {
+		free(enums);
+		return;
+	}
+
+	VG(VALGRIND_MAKE_MEM_DEFINED(enums, sizeof(*enums)*prop->count_enum_blobs));
+	for (j = 0; j < prop->count_enum_blobs; j++) {
+		if (!strcmp(enums[j].name, "ITU-R BT.601 YCbCr")) {
+			p->color_encoding.values[0] = enums[j].value;
+			supported |= 1 << 0;
+		} else if (!strcmp(enums[j].name, "ITU-R BT.709 YCbCr")) {
+			p->color_encoding.values[1] = enums[j].value;
+			supported |= 1 << 1;
+		}
+	}
+
+	free(enums);
+
+	if (supported == 3)
+		p->color_encoding.prop = prop->prop_id;
+}
+
+void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc,
+				    unsigned idx, int colorspace)
+{
+	struct plane *p;
+
+	assert(to_sna_crtc(crtc));
+
+	p = lookup_sprite(to_sna_crtc(crtc), idx);
+
+	if (!p->color_encoding.prop)
+		return;
+
+	drmModeObjectSetProperty(to_sna(crtc->scrn)->kgem.fd,
+				 p->id, DRM_MODE_OBJECT_PLANE,
+				 p->color_encoding.prop,
+				 p->color_encoding.values[colorspace]);
 }
 
 static int plane_details(struct sna *sna, struct plane *p)
@@ -3349,34 +3460,9 @@ static int plane_details(struct sna *sna, struct plane *p)
 		if (strcmp(prop.name, "type") == 0) {
 			type = values[i];
 		} else if (prop_is_rotation(&prop)) {
-			struct drm_mode_property_enum *enums;
-
-			p->rotation.prop = props[i];
-			p->rotation.current = values[i];
-
-			DBG(("%s: found rotation property .id=%d, value=%ld, num_enums=%d\n",
-			     __FUNCTION__, prop.prop_id, (long)values[i], prop.count_enum_blobs));
-			enums = malloc(prop.count_enum_blobs * sizeof(struct drm_mode_property_enum));
-			if (enums != NULL) {
-				prop.count_values = 0;
-				prop.enum_blob_ptr = (uintptr_t)enums;
-
-				if (drmIoctl(sna->kgem.fd, DRM_IOCTL_MODE_GETPROPERTY, &prop) == 0) {
-					int j;
-
-					/* XXX we assume that the mapping between kernel enum and
-					 * RandR remains fixed for our lifetimes.
-					 */
-					VG(VALGRIND_MAKE_MEM_DEFINED(enums, sizeof(*enums)*prop.count_enum_blobs));
-					for (j = 0; j < prop.count_enum_blobs; j++) {
-						DBG(("%s: rotation[%d] = %s [%lx]\n", __FUNCTION__,
-						     j, enums[j].name, (long)enums[j].value));
-						p->rotation.supported |= 1 << enums[j].value;
-					}
-				}
-
-				free(enums);
-			}
+			parse_rotation_prop(sna, p, &prop, values[i]);
+		} else if (prop_is_color_encoding(&prop)) {
+			parse_color_encoding_prop(sna, p, &prop, values[i]);
 		}
 	}
 
