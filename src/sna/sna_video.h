@@ -70,6 +70,15 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	XvTopToBottom \
 }
 
+/* no standard define for this */
+#define XVIMAGE_NV12 { \
+	FOURCC_NV12, XvYUV, LSBFirst,				\
+	{'N','V','1','2', 0x00,0x00,0x00,0x10,0x80,0x00,0x00,0xAA,0x00,0x38,0x9B,0x71}, \
+	12, XvPlanar, 2, 0, 0, 0, 0, 8, 8, 8, 1, 2, 2, 1, 2, 2, \
+	{'Y','U','V', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, \
+	XvTopToBottom \
+}
+
 struct sna_video {
 	struct sna *sna;
 
