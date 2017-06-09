@@ -38,6 +38,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define FOURCC_XVMC (('C' << 24) + ('M' << 16) + ('V' << 8) + 'X')
 #define FOURCC_RGB565 ((16 << 24) + ('B' << 16) + ('G' << 8) + 'R')
 #define FOURCC_RGB888 ((24 << 24) + ('B' << 16) + ('G' << 8) + 'R')
+#define FOURCC_NV12 (('2' << 24) + ('1' << 16) + ('V' << 8) + 'N')
 
 /*
  * Below, a dummy picture type that is used in XvPutImage
@@ -160,6 +161,17 @@ static inline int is_planar_fourcc(int id)
 	case FOURCC_YV12:
 	case FOURCC_I420:
 	case FOURCC_XVMC:
+	case FOURCC_NV12:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static inline int is_nv12_fourcc(int id)
+{
+	switch (id) {
+	case FOURCC_NV12:
 		return 1;
 	default:
 		return 0;
