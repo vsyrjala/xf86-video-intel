@@ -565,7 +565,7 @@ static void assert_scanout(struct kgem *kgem, struct kgem_bo *bo,
 	assert(drmIoctl(kgem->fd, DRM_IOCTL_MODE_GETFB, &info) == 0);
 	gem_close(kgem->fd, info.handle);
 
-	assert(width == info.width && height == info.height);
+	assert(width <= info.width && height <= info.height);
 }
 #else
 #define assert_scanout(k, b, w, h)
