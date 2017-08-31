@@ -2737,7 +2737,7 @@ static bool check_scanout_size(struct kgem *kgem,
 
 	gem_close(kgem->fd, info.handle);
 
-	if (width != info.width || height != info.height) {
+	if (width > info.width || height > info.height) {
 		DBG(("%s: not using scanout %d (%dx%d), want (%dx%d)\n",
 		     __FUNCTION__,
 		     info.fb_id, info.width, info.height,
@@ -5411,7 +5411,7 @@ struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 				continue;
 
 			if (bo->delta && !check_scanout_size(kgem, bo, width, height))
-				continue;
+				kgem_bo_rmfb(kgem, bo);
 
 			if (flags & CREATE_INACTIVE && bo->rq) {
 				last = bo;
