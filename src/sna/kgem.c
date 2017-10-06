@@ -5536,9 +5536,16 @@ struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 				if (num_pages(bo) < size)
 					continue;
 
-				if (!kgem_set_tiling(kgem, bo, tiling, pitch) &&
-				    !exact)
+				if (!kgem_set_tiling(kgem, bo, tiling, pitch)) {
+					if (exact) {
+						DBG(("tiled and pitch not exact: tiling=%d, (want %d), pitch=%d, need %d\n",
+						     bo->tiling, tiling,
+						     bo->pitch, pitch));
+						continue;
+					}
+
 					set_gpu_tiling(kgem, bo, tiling, pitch);
+				}
 			}
 
 			kgem_bo_remove_from_active(kgem, bo);
@@ -5712,9 +5719,16 @@ search_active:
 				if (num_pages(bo) < size)
 					continue;
 
-				if (!kgem_set_tiling(kgem, bo, tiling, pitch) &&
-				    !exact)
+				if (!kgem_set_tiling(kgem, bo, tiling, pitch)) {
+					if (exact) {
+						DBG(("tiled and pitch not exact: tiling=%d, (want %d), pitch=%d, need %d\n",
+						     bo->tiling, tiling,
+						     bo->pitch, pitch));
+						continue;
+					}
+
 					set_gpu_tiling(kgem, bo, tiling, pitch);
+				}
 			}
 			assert(bo->tiling == tiling);
 			assert(bo->pitch >= pitch);
