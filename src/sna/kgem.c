@@ -488,7 +488,7 @@ restart:
 		     bo->tiling, tiling,
 		     bo->pitch, stride,
 		     set_tiling.tiling_mode == tiling));
-		return set_tiling.tiling_mode == tiling;
+		return set_tiling.tiling_mode == tiling && bo->pitch >= stride;
 	}
 
 	err = errno;
