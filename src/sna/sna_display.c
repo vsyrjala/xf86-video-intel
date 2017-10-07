@@ -1428,13 +1428,20 @@ struct kmsg {
 
 static int kmsg_get_debug(void)
 {
-	FILE *file;
 	int v = -1;
+	int fd;
 
-	file = fopen("/sys/module/drm/parameters/debug", "r");
-	if (file) {
-		fscanf(file, "%d", &v);
-		fclose(file);
+	fd = open("/sys/module/drm/parameters/debug", O_RDONLY);
+	if (fd != -1) {
+		char buf[128];
+		int len;
+
+		len = read(fd, buf, sizeof(buf) - 1);
+		if (len != -1) {
+			buf[len] = '\0';
+			v = atoi(buf);
+		}
+		close(fd);
 	}
 
 	return v;
@@ -1442,12 +1449,16 @@ static int kmsg_get_debug(void)
 
 static void kmsg_set_debug(int v)
 {
-	FILE *file;
+	char buf[128];
+	int len;
+	int fd;
 
-	file = fopen("/sys/module/drm/parameters/debug", "w");
-	if (file) {
-		fprintf(file, "%d\n", v);
-		fclose(file);
+	len = snprintf(buf, sizeof(buf), "%d\n", v);
+
+	fd = open("/sys/module/drm/parameters/debug", O_WRONLY);
+	if (fd != -1) {
+		write(fd, buf, len);
+		close(fd);
 	}
 }
 
