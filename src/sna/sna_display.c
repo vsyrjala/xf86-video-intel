@@ -193,6 +193,7 @@ struct sna_cursor {
 
 struct sna_crtc {
 	unsigned long flags;
+	struct list vblank_queue;
 	uint32_t id;
 	xf86CrtcPtr base;
 	struct drm_mode_modeinfo kmode;
@@ -3522,6 +3523,7 @@ sna_crtc_add(ScrnInfoPtr scrn, unsigned id)
 	if (sna_crtc == NULL)
 		return false;
 
+	list_init(&sna_crtc->vblank_queue);
 	sna_crtc->id = id;
 
 	VG_CLEAR(get_pipe);

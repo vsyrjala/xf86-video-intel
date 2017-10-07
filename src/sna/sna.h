@@ -633,7 +633,7 @@ extern bool sna_crtc_set_sprite_rotation(xf86CrtcPtr crtc, unsigned idx, uint32_
 extern uint32_t sna_crtc_to_sprite(xf86CrtcPtr crtc, unsigned idx);
 extern bool sna_crtc_is_transformed(xf86CrtcPtr crtc);
 
-#define CRTC_VBLANK 0x3
+#define CRTC_VBLANK 0x7
 #define CRTC_ON 0x80000000
 
 uint32_t sna_crtc_id(xf86CrtcPtr crtc);
@@ -643,6 +643,11 @@ static inline unsigned long *sna_crtc_flags(xf86CrtcPtr crtc)
 	unsigned long *flags = crtc->driver_private;
 	assert(flags);
 	return flags;
+}
+
+static inline struct list *sna_crtc_vblank_queue(xf86CrtcPtr crtc)
+{
+	return (struct list *)(sna_crtc_flags(crtc) + 1);
 }
 
 static inline unsigned sna_crtc_pipe(xf86CrtcPtr crtc)
@@ -657,12 +662,14 @@ static inline bool sna_crtc_is_on(xf86CrtcPtr crtc)
 
 static inline void sna_crtc_set_vblank(xf86CrtcPtr crtc)
 {
-	assert((*sna_crtc_flags(crtc) & CRTC_VBLANK) < 3);
+	DBG(("%s: current vblank count: %d\n", __FUNCTION__, *sna_crtc_flags(crtc) & CRTC_VBLANK));
+	assert((*sna_crtc_flags(crtc) & CRTC_VBLANK) < CRTC_VBLANK);
 	++*sna_crtc_flags(crtc);
 }
 
 static inline void sna_crtc_clear_vblank(xf86CrtcPtr crtc)
 {
+	DBG(("%s: current vblank count: %d\n", __FUNCTION__, *sna_crtc_flags(crtc) & CRTC_VBLANK));
 	assert(*sna_crtc_flags(crtc) & CRTC_VBLANK);
 	--*sna_crtc_flags(crtc);
 }
