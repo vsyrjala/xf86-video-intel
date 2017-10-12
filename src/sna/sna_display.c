@@ -2159,7 +2159,7 @@ __sna_crtc_disable(struct sna *sna, struct sna_crtc *sna_crtc)
 	if (sna_crtc->bo) {
 		DBG(("%s: releasing handle=%d from scanout, active=%d\n",
 		     __FUNCTION__,sna_crtc->bo->handle, sna_crtc->bo->active_scanout-1));
-		assert(sna_crtc->flags & CRTC_ON);
+		assert(sna_crtc->public.flags & CRTC_ON);
 		assert(sna_crtc->bo->active_scanout);
 		assert(sna_crtc->bo->refcnt >= sna_crtc->bo->active_scanout);
 		sna_crtc->bo->active_scanout--;
@@ -7859,7 +7859,7 @@ sna_covering_crtc(struct sna *sna, const BoxRec *box, xf86CrtcPtr desired)
 			DBG(("%s: have PrimaryOutput? %d marking as desired\n", __FUNCTION__, output->crtc != NULL));
 			desired = output->crtc;
 		}
-		assert(!desired || desired->pScreen == screen);
+		assert(!desired || desired->scrn == sna->scrn);
 	}
 	if (desired && to_sna_crtc(desired) && to_sna_crtc(desired)->bo) {
 		BoxRec cover_box;
