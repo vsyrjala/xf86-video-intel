@@ -7852,12 +7852,14 @@ sna_covering_crtc(struct sna *sna, const BoxRec *box, xf86CrtcPtr desired)
 	     __FUNCTION__, box->x1, box->y1, box->x2, box->y2));
 
 	if (desired == NULL) {
-		rrScrPrivPtr rr = rrGetScrPriv(xf86ScrnToScreen(sna->scrn));
-		if (rr && rr->primaryOutput) {
+		ScreenPtr screen = xf86ScrnToScreen(sna->scrn);
+		rrScrPrivPtr rr = rrGetScrPriv(screen);
+		if (rr && rr->primaryOutput && rr->primaryOutput->pScreen == screen) {
 			xf86OutputPtr output = rr->primaryOutput->devPrivate;
 			DBG(("%s: have PrimaryOutput? %d marking as desired\n", __FUNCTION__, output->crtc != NULL));
 			desired = output->crtc;
 		}
+		assert(!desired || desired->pScreen == screen);
 	}
 	if (desired && to_sna_crtc(desired) && to_sna_crtc(desired)->bo) {
 		BoxRec cover_box;
@@ -7895,8 +7897,9 @@ sna_covering_crtc(struct sna *sna, const BoxRec *box, xf86CrtcPtr desired)
 			return crtc;
 		}
 
-		if (!sna_box_intersect(&cover_box, &crtc->bounds, box))
-			continue;
+		coverage = 0;
+		if (sna_box_intersect(&cover_box, &crtc->bounds, box))
+			coverage = sna_box_area(&cover_box);
 
 		DBG(("%s: box instersects (%d, %d), (%d, %d) of crtc %d\n",
 		     __FUNCTION__,
@@ -7904,7 +7907,6 @@ sna_covering_crtc(struct sna *sna, const BoxRec *box, xf86CrtcPtr desired)
 		     cover_box.x2, cover_box.y2,
 		     c));
 
-		coverage = sna_box_area(&cover_box);
 		DBG(("%s: box covers %d of crtc %d\n",
 		     __FUNCTION__, coverage, c));
 		if (coverage > best_coverage) {
