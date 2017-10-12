@@ -638,16 +638,23 @@ extern bool sna_crtc_is_transformed(xf86CrtcPtr crtc);
 
 uint32_t sna_crtc_id(xf86CrtcPtr crtc);
 
+struct sna_crtc_public {
+	unsigned long flags;
+	struct list vblank_queue;
+};
+
 static inline unsigned long *sna_crtc_flags(xf86CrtcPtr crtc)
 {
-	unsigned long *flags = crtc->driver_private;
-	assert(flags);
-	return flags;
+	struct sna_crtc_public *pub = crtc->driver_private;
+	assert(pub);
+	return &pub->flags;
 }
 
 static inline struct list *sna_crtc_vblank_queue(xf86CrtcPtr crtc)
 {
-	return (struct list *)(sna_crtc_flags(crtc) + 1);
+	struct sna_crtc_public *pub = crtc->driver_private;
+	assert(pub);
+	return &pub->vblank_queue;
 }
 
 static inline unsigned sna_crtc_pipe(xf86CrtcPtr crtc)

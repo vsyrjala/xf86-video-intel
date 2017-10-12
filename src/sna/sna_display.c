@@ -192,8 +192,7 @@ struct sna_cursor {
 };
 
 struct sna_crtc {
-	unsigned long flags;
-	struct list vblank_queue;
+	struct sna_crtc_public public;
 	uint32_t id;
 	xf86CrtcPtr base;
 	struct drm_mode_modeinfo kmode;
@@ -421,7 +420,7 @@ static inline struct sna_crtc *to_sna_crtc(xf86CrtcPtr crtc)
 
 static inline unsigned __sna_crtc_pipe(struct sna_crtc *crtc)
 {
-	return crtc->flags >> 8 & 0xff;
+	return crtc->public.flags >> 8 & 0xff;
 }
 
 static inline unsigned __sna_crtc_id(struct sna_crtc *crtc)
@@ -2166,7 +2165,7 @@ __sna_crtc_disable(struct sna *sna, struct sna_crtc *sna_crtc)
 		sna_crtc->bo->active_scanout--;
 		kgem_bo_destroy(&sna->kgem, sna_crtc->bo);
 		sna_crtc->bo = NULL;
-		sna_crtc->flags &= ~CRTC_ON;
+		sna_crtc->public.flags &= ~CRTC_ON;
 
 		if (sna->mode.hidden) {
 			sna->mode.hidden--;
@@ -3101,7 +3100,7 @@ retry: /* Attach per-crtc pixmap or direct */
 		goto error;
 	}
 
-	sna_crtc->flags |= CRTC_ON;
+	sna_crtc->public.flags |= CRTC_ON;
 	bo->active_scanout++;
 	DBG(("%s: marking handle=%d as active=%d (removing %d from scanout, active=%d)\n",
 	     __FUNCTION__, bo->handle, bo->active_scanout,
@@ -3534,7 +3533,7 @@ sna_crtc_add(ScrnInfoPtr scrn, unsigned id)
 	if (sna_crtc == NULL)
 		return false;
 
-	list_init(&sna_crtc->vblank_queue);
+	list_init(&sna_crtc->public.vblank_queue);
 	sna_crtc->id = id;
 
 	VG_CLEAR(get_pipe);
@@ -3547,7 +3546,7 @@ sna_crtc_add(ScrnInfoPtr scrn, unsigned id)
 		return false;
 	}
 	assert((unsigned)get_pipe.pipe < 256);
-	sna_crtc->flags |= get_pipe.pipe << 8;
+	sna_crtc->public.flags |= get_pipe.pipe << 8;
 
 	if (is_zaphod(scrn) &&
 	    (get_zaphod_crtcs(sna) & (1 << get_pipe.pipe)) == 0) {
