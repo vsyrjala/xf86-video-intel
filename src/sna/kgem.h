@@ -596,6 +596,20 @@ static inline bool kgem_bo_can_blt(struct kgem *kgem,
 	return kgem_bo_blt_pitch_is_ok(kgem, bo);
 }
 
+static inline bool kgem_can_blt(struct kgem *kgem,
+				struct kgem_bo *src,
+				struct kgem_bo *dst)
+{
+	if (src->snoop && dst->snoop)
+		return false;
+
+	if (kgem->gen == 020 && src->snoop && !dst->snoop)
+		return false;
+
+	return kgem_bo_can_blt(kgem, src) &&
+		kgem_bo_can_blt(kgem, dst);
+}
+
 void __kgem_bcs_set_tiling(struct kgem *kgem,
 			   struct kgem_bo *src,
 			   struct kgem_bo *dst);

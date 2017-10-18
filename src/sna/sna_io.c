@@ -456,6 +456,11 @@ fallback:
 		read_boxes_inplace(kgem, dst, src_bo, box, nbox);
 		return;
 	}
+	if (!kgem_can_blt(kgem, src_bo, dst_bo)) {
+		kgem_bo_destroy(&sna->kgem, dst_bo);
+		read_boxes_inplace(kgem, dst, src_bo, box, nbox);
+		return;
+	}
 
 	cmd = XY_SRC_COPY_BLT_CMD;
 	src_pitch = src_bo->pitch;
@@ -1186,6 +1191,11 @@ tile:
 			if (!src_bo)
 				break;
 
+			if (!kgem_can_blt(kgem, src_bo, dst_bo)) {
+				kgem_bo_destroy(&sna->kgem, src_bo);
+				goto fallback;
+			}
+
 			if (sigtrap_get()) {
 				kgem_bo_destroy(kgem, src_bo);
 				goto fallback;
@@ -1695,6 +1705,11 @@ tile:
 						    &ptr);
 			if (!src_bo)
 				goto fallback;
+
+			if (!kgem_can_blt(kgem, src_bo, dst_bo)) {
+				kgem_bo_destroy(kgem, src_bo);
+				goto fallback;
+			}
 
 			if (sigtrap_get()) {
 				kgem_bo_destroy(kgem, src_bo);

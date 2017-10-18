@@ -8114,7 +8114,7 @@ kgem_replace_bo(struct kgem *kgem,
 	dst->unique_id = kgem_get_unique_id(kgem);
 	dst->refcnt = 1;
 	assert(dst->tiling == I915_TILING_NONE);
-	assert(kgem_bo_can_blt(kgem, dst));
+	assert(kgem_can_blt(kgem, src, dst));
 
 	kgem_set_mode(kgem, KGEM_BLT, dst);
 	if (!kgem_check_batch(kgem, 10) ||

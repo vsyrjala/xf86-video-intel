@@ -346,8 +346,7 @@ static bool sna_blt_copy_init(struct sna *sna,
 {
 	struct kgem *kgem = &sna->kgem;
 
-	assert(kgem_bo_can_blt(kgem, src));
-	assert(kgem_bo_can_blt(kgem, dst));
+	assert(kgem_can_blt(kgem, src, dst));
 
 	blt->bo[0] = src;
 	blt->bo[1] = dst;
@@ -402,8 +401,7 @@ static bool sna_blt_alpha_fixup_init(struct sna *sna,
 
 	DBG(("%s: dst handle=%d, src handle=%d, bpp=%d, fixup=%08x\n",
 	     __FUNCTION__, dst->handle, src->handle, bpp, alpha));
-	assert(kgem_bo_can_blt(kgem, src));
-	assert(kgem_bo_can_blt(kgem, dst));
+	assert(kgem_can_blt(kgem, src, dst));
 
 	blt->bo[0] = src;
 	blt->bo[1] = dst;
@@ -2010,8 +2008,7 @@ prepare_blt_copy(struct sna *sna,
 	PixmapPtr src = op->u.blt.src_pixmap;
 
 	assert(op->dst.bo);
-	assert(kgem_bo_can_blt(&sna->kgem, op->dst.bo));
-	assert(kgem_bo_can_blt(&sna->kgem, bo));
+	assert(kgem_can_blt(&sna->kgem, bo, op->dst.bo));
 
 	kgem_set_mode(&sna->kgem, KGEM_BLT, op->dst.bo);
 	if (!kgem_check_many_bo_fenced(&sna->kgem, op->dst.bo, bo, NULL)) {
@@ -2906,18 +2903,10 @@ fill:
 fallback:
 			if (flags & COMPOSITE_FALLBACK || !kgem_bo_is_busy(bo))
 				goto put;
-		} else if (!kgem_bo_can_blt(&sna->kgem, bo)) {
-			DBG(("%s: fallback -- cannot blit from source\n",
-			     __FUNCTION__));
-			goto fallback;
-		} else if (bo->snoop && tmp->dst.bo->snoop) {
+		} else if (!kgem_can_blt(&sna->kgem, bo, tmp->dst.bo)) {
 			DBG(("%s: fallback -- can not copy between snooped bo\n",
 			     __FUNCTION__));
 			goto put;
-		} else if (!kgem_bo_can_blt(&sna->kgem, tmp->dst.bo)) {
-			DBG(("%s: fallback -- unaccelerated upload\n",
-			     __FUNCTION__));
-			goto fallback;
 		} else if ((flags & COMPOSITE_UPLOAD) == 0) {
 			ret = prepare_blt_copy(sna, tmp, bo, alpha_fixup);
 			if (!ret)
@@ -3007,8 +2996,7 @@ sna_blt_composite__convert(struct sna *sna,
 	     tmp->src.bo->handle, tmp->dst.bo->handle,
 	     tmp->redirect.real_bo ? tmp->redirect.real_bo->handle : 0));
 
-	if (!kgem_bo_can_blt(&sna->kgem, tmp->dst.bo) ||
-	    !kgem_bo_can_blt(&sna->kgem, tmp->src.bo)) {
+	if (!kgem_can_blt(&sna->kgem, tmp->src.bo, tmp->dst.bo)) {
 		DBG(("%s: cannot blt from src or to dst\n", __FUNCTION__));
 		return false;
 	}
@@ -3306,10 +3294,7 @@ bool sna_blt_copy(struct sna *sna, uint8_t alu,
 	return false;
 #endif
 
-	if (!kgem_bo_can_blt(&sna->kgem, src))
-		return false;
-
-	if (!kgem_bo_can_blt(&sna->kgem, dst))
+	if (!kgem_can_blt(&sna->kgem, src, dst))
 		return false;
 
 	if (!sna_blt_copy_init(sna, &op->base.u.blt,
@@ -3709,7 +3694,7 @@ bool sna_blt_copy_boxes(struct sna *sna, uint8_t alu,
 	    src_bo->pitch, dst_bo->pitch));
 	assert(nbox);
 
-	if (wedged(sna) || !kgem_bo_can_blt(kgem, src_bo) || !kgem_bo_can_blt(kgem, dst_bo)) {
+	if (wedged(sna) || !kgem_can_blt(kgem, src_bo, dst_bo)) {
 		DBG(("%s: cannot blt to src? %d or dst? %d\n",
 		     __FUNCTION__,
 		     kgem_bo_can_blt(kgem, src_bo),
@@ -4059,7 +4044,7 @@ bool sna_blt_copy_boxes__with_alpha(struct sna *sna, uint8_t alu,
 	    src_bo->tiling, dst_bo->tiling,
 	    src_bo->pitch, dst_bo->pitch));
 
-	if (wedged(sna) || !kgem_bo_can_blt(kgem, src_bo) || !kgem_bo_can_blt(kgem, dst_bo)) {
+	if (wedged(sna) || !kgem_can_blt(kgem, src_bo, dst_bo)) {
 		DBG(("%s: cannot blt to src? %d or dst? %d\n",
 		     __FUNCTION__,
 		     kgem_bo_can_blt(kgem, src_bo),
