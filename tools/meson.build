@@ -30,6 +30,30 @@ if with_tools
 	     ],
 	     install : true)
 
+  configure_file(input : 'intel-virtual-output.man',
+		 output : 'intel-virtual-output.4',
+		 command : [
+		 'sed',
+		 '-e',
+		 's/__appmansuffix__/@0@/g'.format(man_config.get('appmansuffix')),
+		 '-e',
+		 's/__filemansuffix__/@0@/g'.format(man_config.get('filemansuffix')),
+		 '-e',
+		 's/__drivermansuffix__/@0@/g'.format(man_config.get('drivermansuffix')),
+		 '-e',
+		 's/__miscmansuffix__/@0@/g'.format(man_config.get('miscmansuffix')),
+		 '-e',
+		 's/__xservername__/@0@/g'.format(man_config.get('xservername')),
+		 '-e',
+		 's/__xconfigfile__/@0@/g'.format(man_config.get('xconfigfile')),
+		 '-e',
+		 's/__vendorversion__/@0@/g'.format(man_config.get('vendorversion')),
+		 '@INPUT@'
+	       ],
+	       capture : true,
+	       install_dir: join_paths(get_option('mandir'), 'man4'),
+	       install : true)
+
   executable('cursor',
 	     sources : 'cursor.c',
 	     dependencies : [ x11, xfixes, png, ],
@@ -62,4 +86,15 @@ if with_backlight_helper
 	     install_dir : get_option('libexecdir'),
 	     install_mode : [ 'rws--x--x', 'root', 'root' ],
 	     install : true)
+
+  polkit_config = configuration_data()
+  polkit_config.set('LIBEXEC_PATH',
+		    join_paths(get_option('prefix'),
+			       get_option('libexecdir')))
+
+  configure_file(input : 'org.x.xf86-video-intel.backlight-helper.policy.in',
+		 output : 'org.x.xf86-video-intel.backlight-helper.policy',
+		 configuration : polkit_config,
+		 install_dir : join_paths(get_option('datadir'), 'polkit-1/actions'),
+		 install : true)
 endif

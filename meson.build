@@ -15,7 +15,8 @@ config.set('PACKAGE_VERSION_MINOR', version[1])
 config.set('PACKAGE_VERSION_PATCHLEVEL', version[2])
 
 config.set_quoted('PREFIX_PATH', get_option('prefix'))
-config.set_quoted('LIBEXEC_PATH', get_option('libexecdir'))
+config.set_quoted('LIBEXEC_PATH', join_paths(get_option('prefix'),
+					     get_option('libexecdir')))
 
 xorg_moduledir = get_option('xorg-module-dir')
 moduledir = ''
@@ -340,11 +341,24 @@ inc = include_directories([ '.', 'src', 'xvmc', 'src/render_program', ])
 
 add_project_arguments('-include', 'config.h', language : 'c')
 
+man_config = configuration_data()
+man_config.set('appmansuffix', '1')
+man_config.set('filemansuffix', '5')
+man_config.set('drivermansuffix', '4')
+man_config.set('miscmansuffix', '7')
+man_config.set('xservername', 'Xorg')
+man_config.set('xconfigfile', 'xorg.conf')
+man_config.set('vendorversion', '"@0@ @1@" "@2@"'.format(meson.project_name(),
+							 meson.project_version(),
+							 'X Version 11'))
+
 subdir('src')
 subdir('tools')
 
 if with_xvmc
   subdir('xvmc')
 endif
+
+subdir('man')
 
 configure_file(output: 'config.h', install: false, configuration: config)
