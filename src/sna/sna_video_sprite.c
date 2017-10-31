@@ -164,53 +164,67 @@ static int sna_video_sprite_best_size(ddQueryBestSize_ARGS)
 	return Success;
 }
 
+static void rotate_box(BoxPtr box,
+		       int width, int height,
+		       int rotation)
+{
+	BoxRec tmp;
+
+	/* FIXME the rest of the code doesn't
+	 * handle reflections correctly
+	 */
+	if (rotation & ~0xf) {
+		tmp = *box;
+		if (rotation & RR_Reflect_X) {
+			box->x1 = width - tmp.x2;
+			box->x2 = width - tmp.x1;
+		}
+		if (rotation & RR_Reflect_Y) {
+			box->y1 = height - tmp.y2;
+			box->y2 = height - tmp.y1;
+		}
+	}
+
+	switch (rotation & 0xf) {
+	case RR_Rotate_0:
+		break;
+	case RR_Rotate_90:
+		tmp = *box;
+		box->x1 = tmp.y1;
+		box->x2 = tmp.y2;
+		box->y1 = width - tmp.x2;
+		box->y2 = width - tmp.x1;
+		break;
+	case RR_Rotate_180:
+		tmp = *box;
+		box->x1 = width - tmp.x2;
+		box->x2 = width - tmp.x1;
+		box->y1 = height - tmp.y2;
+		box->y2 = height - tmp.y1;
+		break;
+	case RR_Rotate_270:
+		tmp = *box;
+		box->x1 = height - tmp.y2;
+		box->x2 = height - tmp.y1;
+		box->y1 = tmp.x1;
+		box->y2 = tmp.x2;
+		break;
+	}
+}
+
 static void
 update_dst_box_to_crtc_coords(struct sna *sna, xf86CrtcPtr crtc, BoxPtr dstBox)
 {
 	ScrnInfoPtr scrn = sna->scrn;
-	int tmp;
+	BoxRec crtc_bounds = crtc->bounds;
 
-	switch (crtc->rotation & 0xf) {
-	case RR_Rotate_0:
-		dstBox->x1 -= crtc->x;
-		dstBox->x2 -= crtc->x;
-		dstBox->y1 -= crtc->y;
-		dstBox->y2 -= crtc->y;
-		break;
+	rotate_box(dstBox, scrn->virtualX, scrn->virtualY, crtc->rotation);
+	rotate_box(&crtc_bounds, scrn->virtualX, scrn->virtualY, crtc->rotation);
 
-	case RR_Rotate_90:
-		tmp = dstBox->x1;
-		dstBox->x1 = dstBox->y1 - crtc->x;
-		dstBox->y1 = scrn->virtualX - tmp - crtc->y;
-		tmp = dstBox->x2;
-		dstBox->x2 = dstBox->y2 - crtc->x;
-		dstBox->y2 = scrn->virtualX - tmp - crtc->y;
-		tmp = dstBox->y1;
-		dstBox->y1 = dstBox->y2;
-		dstBox->y2 = tmp;
-		break;
-
-	case RR_Rotate_180:
-		tmp = dstBox->x1;
-		dstBox->x1 = scrn->virtualX - dstBox->x2 - crtc->x;
-		dstBox->x2 = scrn->virtualX - tmp - crtc->x;
-		tmp = dstBox->y1;
-		dstBox->y1 = scrn->virtualY - dstBox->y2 - crtc->y;
-		dstBox->y2 = scrn->virtualY - tmp - crtc->y;
-		break;
-
-	case RR_Rotate_270:
-		tmp = dstBox->x1;
-		dstBox->x1 = scrn->virtualY - dstBox->y1 - crtc->x;
-		dstBox->y1 = tmp - crtc->y;
-		tmp = dstBox->x2;
-		dstBox->x2 = scrn->virtualY - dstBox->y2 - crtc->x;
-		dstBox->y2 = tmp - crtc->y;
-		tmp = dstBox->x1;
-		dstBox->x1 = dstBox->x2;
-		dstBox->x2 = tmp;
-		break;
-	}
+	dstBox->x1 -= crtc_bounds.x1;
+	dstBox->x2 -= crtc_bounds.x1;
+	dstBox->y1 -= crtc_bounds.y1;
+	dstBox->y2 -= crtc_bounds.y1;
 }
 
 static bool
