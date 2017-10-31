@@ -368,6 +368,11 @@ sna_video_sprite_show(struct sna *sna,
 	s.src_y = 0;
 	s.src_w = (frame->image.x2 - frame->image.x1) << 16;
 	s.src_h = (frame->image.y2 - frame->image.y1) << 16;
+	if (frame->rotation & (RR_Rotate_90 | RR_Rotate_270)) {
+		int tmp = s.src_w;
+		s.src_w = s.src_h;
+		s.src_h = tmp;
+	}
 
 	DBG(("%s: updating crtc=%d, plane=%d, handle=%d [fb %d], dst=(%d,%d)x(%d,%d), src=(%d,%d)x(%d,%d)\n",
 	     __FUNCTION__, s.crtc_id, s.plane_id, frame->bo->handle, s.fb_id,

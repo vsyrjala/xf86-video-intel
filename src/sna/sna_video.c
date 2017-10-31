@@ -91,13 +91,22 @@ struct kgem_bo *
 sna_video_buffer(struct sna_video *video,
 		 struct sna_video_frame *frame)
 {
+	int width = frame->width;
+	int height = frame->height;
+
+	if (frame->rotation & (RR_Rotate_90 | RR_Rotate_270)) {
+		int tmp = width;
+		width = height;
+		height = tmp;
+	}
+
 	/* Free the current buffer if we're going to have to reallocate */
 	if (video->buf && __kgem_bo_size(video->buf) < frame->size)
 		sna_video_free_buffers(video);
 
 	if (video->buf && video->buf->scanout) {
-		if (frame->width != video->width ||
-		    frame->height != video->height ||
+		if (width != video->width ||
+		    height != video->height ||
 		    frame->id != video->format)
 			sna_video_free_buffers(video);
 	}
@@ -105,7 +114,7 @@ sna_video_buffer(struct sna_video *video,
 	if (video->buf == NULL) {
 		if (video->tiled) {
 			video->buf = kgem_create_2d(&video->sna->kgem,
-						    frame->width, frame->height, 32,
+						    width, height, 32,
 						    I915_TILING_X, CREATE_EXACT);
 		} else {
 			video->buf = kgem_create_linear(&video->sna->kgem, frame->size,
@@ -113,8 +122,8 @@ sna_video_buffer(struct sna_video *video,
 		}
 	}
 
-	video->width  = frame->width;
-	video->height = frame->height;
+	video->width  = width;
+	video->height = height;
 	video->format = frame->id;
 
 	return video->buf;
