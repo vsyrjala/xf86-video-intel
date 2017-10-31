@@ -84,12 +84,10 @@ static int sna_video_sprite_stop(ddStopVideo_ARGS)
 	int i;
 
 	for (i = 0; i < video->sna->mode.num_real_crtc; i++) {
+		struct sna_video_crtc *vc = &video->crtc[i];
 		xf86CrtcPtr crtc = config->crtc[i];
-		int pipe;
 
-		pipe = sna_crtc_pipe(crtc);
-		assert(pipe < ARRAY_SIZE(video->bo));
-		if (video->bo[pipe] == NULL)
+		if (vc->bo == NULL)
 			continue;
 
 		memset(&s, 0, sizeof(s));
@@ -98,9 +96,9 @@ static int sna_video_sprite_stop(ddStopVideo_ARGS)
 			xf86DrvMsg(video->sna->scrn->scrnIndex, X_ERROR,
 				   "failed to disable plane\n");
 
-		if (video->bo[pipe])
-			kgem_bo_destroy(&video->sna->kgem, video->bo[pipe]);
-		video->bo[pipe] = NULL;
+		if (vc->bo)
+			kgem_bo_destroy(&video->sna->kgem, vc->bo);
+		vc->bo = NULL;
 	}
 
 	sna_window_set_port((WindowPtr)draw, NULL);
@@ -229,11 +227,12 @@ update_dst_box_to_crtc_coords(struct sna *sna, xf86CrtcPtr crtc, BoxPtr dstBox)
 
 static bool
 sna_video_sprite_show(struct sna *sna,
-		      struct sna_video *video,
+		      struct sna_video_crtc *vc,
 		      struct sna_video_frame *frame,
 		      xf86CrtcPtr crtc,
 		      BoxPtr dstBox)
 {
+	struct sna_video *video = vc->video;
 	struct local_mode_set_plane s;
 	int pipe = sna_crtc_pipe(crtc);
 
@@ -384,18 +383,18 @@ sna_video_sprite_show(struct sna *sna,
 		memset(&s, 0, sizeof(s));
 		s.plane_id = video->plane;
 		(void)drmIoctl(sna->kgem.fd, LOCAL_IOCTL_MODE_SETPLANE, &s);
-		if (video->bo[pipe]) {
-			kgem_bo_destroy(&sna->kgem, video->bo[pipe]);
-			video->bo[pipe] = NULL;
+		if (vc->bo) {
+			kgem_bo_destroy(&sna->kgem, vc->bo);
+			vc->bo = NULL;
 		}
 		return false;
 	}
 
 	__kgem_bo_clear_dirty(frame->bo);
 
-	if (video->bo[pipe])
-		kgem_bo_destroy(&sna->kgem, video->bo[pipe]);
-	video->bo[pipe] = kgem_bo_reference(frame->bo);
+	if (vc->bo)
+		kgem_bo_destroy(&sna->kgem, vc->bo);
+	vc->bo = kgem_bo_reference(frame->bo);
 	return true;
 }
 
@@ -434,16 +433,14 @@ static int sna_video_sprite_put_image(ddPutImage_ARGS)
 	}
 
 	for (i = 0; i < video->sna->mode.num_real_crtc; i++) {
+		struct sna_video_crtc *vc = &video->crtc[i];
 		xf86CrtcPtr crtc = config->crtc[i];
 		struct sna_video_frame frame;
 		BoxRec dst = draw_extents;
-		int pipe;
 		INT32 x1, x2, y1, y2;
 		RegionRec reg;
 		Rotation rotation;
 		bool cache_bo;
-
-		pipe = sna_crtc_pipe(crtc);
 
 		sna_video_frame_init(video, format->id, width, height, &frame);
 
@@ -453,14 +450,14 @@ static int sna_video_sprite_put_image(ddPutImage_ARGS)
 		if (RegionNil(&reg)) {
 off:
 			assert(pipe < ARRAY_SIZE(video->bo));
-			if (video->bo[pipe]) {
+			if (vc->bo) {
 				struct local_mode_set_plane s;
 				memset(&s, 0, sizeof(s));
 				s.plane_id = sna_crtc_to_sprite(crtc, video->idx);
 				if (drmIoctl(video->sna->kgem.fd, LOCAL_IOCTL_MODE_SETPLANE, &s))
 					xf86DrvMsg(video->sna->scrn->scrnIndex, X_ERROR,
 						   "failed to disable plane\n");
-				video->bo[pipe] = NULL;
+				vc->bo = NULL;
 			}
 			continue;
 		}
@@ -527,14 +524,14 @@ off:
 
 			cache_bo = false;
 		} else {
-			frame.bo = sna_video_buffer(video, &frame);
+			frame.bo = sna_video_buffer(vc, &frame);
 			if (frame.bo == NULL) {
 				DBG(("%s: failed to allocate video bo\n", __FUNCTION__));
 				ret = BadAlloc;
 				goto err;
 			}
 
-			if (!sna_video_copy_data(video, &frame, buf)) {
+			if (!sna_video_copy_data(vc, &frame, buf)) {
 				DBG(("%s: failed to copy video data\n", __FUNCTION__));
 				ret = BadAlloc;
 				goto err;
@@ -578,7 +575,7 @@ off:
 			}
 
 			if (cache_bo)
-				sna_video_buffer_fini(video);
+				sna_video_buffer_fini(vc);
 			else
 				kgem_bo_destroy(&sna->kgem, frame.bo);
 
@@ -596,13 +593,13 @@ off:
 		}
 
 		ret = Success;
-		if (!sna_video_sprite_show(sna, video, &frame, crtc, &dst)) {
+		if (!sna_video_sprite_show(sna, vc, &frame, crtc, &dst)) {
 			DBG(("%s: failed to show video frame\n", __FUNCTION__));
 			ret = BadAlloc;
 		}
 
 		if (cache_bo)
-			sna_video_buffer_fini(video);
+			sna_video_buffer_fini(vc);
 		else
 			kgem_bo_destroy(&sna->kgem, frame.bo);
 
@@ -771,6 +768,8 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 	adaptor->pPorts = port;
 
 	for (i = 0; i < count; i++) {
+		int j;
+
 		port->id = FakeClientID(0);
 		AddResource(port->id, XvGetRTPort(), port);
 		port->pAdaptor = adaptor;
@@ -799,6 +798,9 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 		video->gamma0 = 0x080808;
 		RegionNull(&video->clip);
 		video->SyncToVblank = 1;
+
+		for (j = 0; j < ARRAY_SIZE(video->crtc); j++)
+			video->crtc[j].video = video;
 
 		port++;
 		video++;

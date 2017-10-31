@@ -79,10 +79,18 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	XvTopToBottom \
 }
 
+struct sna_video_crtc {
+	struct sna_video *video;
+	struct kgem_bo *bo;
+	/** YUV data buffers */
+	struct kgem_bo *old_buf[2];
+	struct kgem_bo *buf;
+	int width, height, format;
+	bool tiled;
+};
+
 struct sna_video {
 	struct sna *sna;
-
-	int idx; /* XXX expose struct plane instead? */
 
 	int brightness;
 	int contrast;
@@ -100,21 +108,17 @@ struct sna_video {
 	unsigned color_key_changed;
 	bool has_color_key;
 
-	/** YUV data buffers */
-	struct kgem_bo *old_buf[2];
-	struct kgem_bo *buf;
-	int width, height, format;
-
-	int alignment;
-	bool tiled;
 	bool textured;
+	int idx; /* XXX expose struct plane instead? */
+	int alignment;
 	int plane;
 
-	struct kgem_bo *bo[4];
 	RegionRec clip;
 
 	int SyncToVblank;	/* -1: auto, 0: off, 1: on */
 	int AlwaysOnTop;
+
+	struct sna_video_crtc crtc[4];
 };
 
 struct sna_video_frame {
@@ -209,20 +213,20 @@ sna_video_frame_set_rotation(struct sna_video *video,
 			     Rotation rotation);
 
 struct kgem_bo *
-sna_video_buffer(struct sna_video *video,
+sna_video_buffer(struct sna_video_crtc *vc,
 		 struct sna_video_frame *frame);
 
 bool
-sna_video_copy_data(struct sna_video *video,
+sna_video_copy_data(struct sna_video_crtc *vc,
 		    struct sna_video_frame *frame,
 		    const uint8_t *buf);
 void
 sna_video_fill_colorkey(struct sna_video *video,
 			const RegionRec *clip);
 
-void sna_video_buffer_fini(struct sna_video *video);
+void sna_video_buffer_fini(struct sna_video_crtc *vc);
 
-void sna_video_free_buffers(struct sna_video *video);
+void sna_video_free_buffers(struct sna_video_crtc *vc);
 
 static inline XvPortPtr
 sna_window_get_port(WindowPtr window)

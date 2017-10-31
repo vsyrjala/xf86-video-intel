@@ -125,6 +125,7 @@ static bool sna_video_overlay_update_attrs(struct sna_video *video)
 static int sna_video_overlay_stop(ddStopVideo_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
+	struct sna_video_crtc *vc = &video->crtc[0];
 	struct sna *sna = video->sna;
 	struct drm_intel_overlay_put_image request;
 
@@ -137,11 +138,11 @@ static int sna_video_overlay_stop(ddStopVideo_ARGS)
 		       DRM_IOCTL_I915_OVERLAY_PUT_IMAGE,
 		       &request);
 
-	if (video->bo[0])
-		kgem_bo_destroy(&sna->kgem, video->bo[0]);
-	video->bo[0] = NULL;
+	if (vc->bo)
+		kgem_bo_destroy(&sna->kgem, vc->bo);
+	vc->bo = NULL;
 
-	sna_video_free_buffers(video);
+	sna_video_free_buffers(vc);
 	sna_window_set_port((WindowPtr)draw, NULL);
 	return Success;
 }
@@ -344,7 +345,7 @@ update_dst_box_to_crtc_coords(struct sna *sna, xf86CrtcPtr crtc, BoxPtr dstBox)
 
 static bool
 sna_video_overlay_show(struct sna *sna,
-		       struct sna_video *video,
+		       struct sna_video_crtc *vc,
 		       struct sna_video_frame *frame,
 		       xf86CrtcPtr crtc,
 		       BoxPtr dstBox,
@@ -440,10 +441,10 @@ sna_video_overlay_show(struct sna *sna,
 		return false;
 	}
 
-	if (video->bo[0] != frame->bo) {
-		if (video->bo[0])
-			kgem_bo_destroy(&sna->kgem, video->bo[0]);
-		video->bo[0] = kgem_bo_reference(frame->bo);
+	if (vc->bo != frame->bo) {
+		if (vc->bo)
+			kgem_bo_destroy(&sna->kgem, vc->bo);
+		vc->bo = kgem_bo_reference(frame->bo);
 	}
 
 	return true;
@@ -453,6 +454,7 @@ static int
 sna_video_overlay_put_image(ddPutImage_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
+	struct sna_video_crtc *vc = &video->crtc[0];
 	struct sna *sna = video->sna;
 	struct sna_video_frame frame;
 	xf86CrtcPtr crtc;
@@ -534,21 +536,21 @@ sna_video_overlay_put_image(ddPutImage_ARGS)
 		frame.image.x2 = frame.width;
 		frame.image.y2 = frame.height;
 	} else {
-		frame.bo = sna_video_buffer(video, &frame);
+		frame.bo = sna_video_buffer(vc, &frame);
 		if (frame.bo == NULL) {
 			DBG(("%s: failed to allocate video bo\n", __FUNCTION__));
 			return BadAlloc;
 		}
 
-		if (!sna_video_copy_data(video, &frame, buf)) {
+		if (!sna_video_copy_data(vc, &frame, buf)) {
 			DBG(("%s: failed to copy video data\n", __FUNCTION__));
 			return BadAlloc;
 		}
 	}
 
 	ret = Success;
-	if (sna_video_overlay_show
-	    (sna, video, &frame, crtc, &dstBox, src_w, src_h, drw_w, drw_h)) {
+	if (sna_video_overlay_show(sna, vc, &frame, crtc, &dstBox,
+				   src_w, src_h, drw_w, drw_h)) {
 		sna_video_fill_colorkey(video, &clip);
 		sna_window_set_port((WindowPtr)draw, port);
 	} else {
@@ -560,7 +562,7 @@ sna_video_overlay_put_image(ddPutImage_ARGS)
 	if (xvmc_passthrough(format->id))
 		kgem_bo_destroy(&sna->kgem, frame.bo);
 	else
-		sna_video_buffer_fini(video);
+		sna_video_buffer_fini(vc);
 
 	return ret;
 
@@ -691,6 +693,7 @@ void sna_video_overlay_setup(struct sna *sna, ScreenPtr screen)
 	XvAdaptorPtr adaptor;
 	struct sna_video *video;
 	XvPortPtr port;
+	int i;
 
 	if (sna->flags & SNA_IS_HOSTED)
 		return;
@@ -787,6 +790,9 @@ void sna_video_overlay_setup(struct sna *sna, ScreenPtr screen)
 	video->gamma1 = 0x101010;
 	video->gamma0 = 0x080808;
 	RegionNull(&video->clip);
+
+	for (i = 0; i < ARRAY_SIZE(video->crtc); i++)
+		video->crtc[i].video = video;
 
 	xvColorKey = MAKE_ATOM("XV_COLORKEY");
 	xvBrightness = MAKE_ATOM("XV_BRIGHTNESS");

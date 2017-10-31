@@ -70,27 +70,29 @@ static inline void sna_video_xvmc_setup(struct sna *sna, ScreenPtr ptr)
 }
 #endif
 
-void sna_video_free_buffers(struct sna_video *video)
+void sna_video_free_buffers(struct sna_video_crtc *vc)
 {
+	struct sna_video *video = vc->video;
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(video->old_buf); i++) {
-		if (video->old_buf[i]) {
-			kgem_bo_destroy(&video->sna->kgem, video->old_buf[i]);
-			video->old_buf[i] = NULL;
+	for (i = 0; i < ARRAY_SIZE(vc->old_buf); i++) {
+		if (vc->old_buf[i]) {
+			kgem_bo_destroy(&video->sna->kgem, vc->old_buf[i]);
+			vc->old_buf[i] = NULL;
 		}
 	}
 
-	if (video->buf) {
-		kgem_bo_destroy(&video->sna->kgem, video->buf);
-		video->buf = NULL;
+	if (vc->buf) {
+		kgem_bo_destroy(&video->sna->kgem, vc->buf);
+		vc->buf = NULL;
 	}
 }
 
 struct kgem_bo *
-sna_video_buffer(struct sna_video *video,
+sna_video_buffer(struct sna_video_crtc *vc,
 		 struct sna_video_frame *frame)
 {
+	struct sna_video *video = vc->video;
 	int width = frame->width;
 	int height = frame->height;
 
@@ -101,42 +103,42 @@ sna_video_buffer(struct sna_video *video,
 	}
 
 	/* Free the current buffer if we're going to have to reallocate */
-	if (video->buf && __kgem_bo_size(video->buf) < frame->size)
-		sna_video_free_buffers(video);
+	if (vc->buf && __kgem_bo_size(vc->buf) < frame->size)
+		sna_video_free_buffers(vc);
 
-	if (video->buf && video->buf->scanout) {
-		if (width != video->width ||
-		    height != video->height ||
-		    frame->id != video->format)
-			sna_video_free_buffers(video);
+	if (vc->buf && vc->buf->scanout) {
+		if (width != vc->width ||
+		    height != vc->height ||
+		    frame->id != vc->format)
+			sna_video_free_buffers(vc);
 	}
 
-	if (video->buf == NULL) {
-		if (video->tiled) {
-			video->buf = kgem_create_2d(&video->sna->kgem,
-						    width, height, 32,
-						    I915_TILING_X, CREATE_EXACT);
+	if (vc->buf == NULL) {
+		if (vc->tiled) {
+			vc->buf = kgem_create_2d(&video->sna->kgem,
+						 width, height, 32,
+						 I915_TILING_X, CREATE_EXACT);
 		} else {
-			video->buf = kgem_create_linear(&video->sna->kgem, frame->size,
-							CREATE_GTT_MAP);
+			vc->buf = kgem_create_linear(&video->sna->kgem, frame->size,
+						     CREATE_GTT_MAP);
 		}
 	}
 
-	video->width  = width;
-	video->height = height;
-	video->format = frame->id;
+	vc->width  = width;
+	vc->height = height;
+	vc->format = frame->id;
 
-	return video->buf;
+	return vc->buf;
 }
 
-void sna_video_buffer_fini(struct sna_video *video)
+void sna_video_buffer_fini(struct sna_video_crtc *vc)
 {
 	struct kgem_bo *bo;
 
-	bo = video->old_buf[1];
-	video->old_buf[1] = video->old_buf[0];
-	video->old_buf[0] = video->buf;
-	video->buf = bo;
+	bo = vc->old_buf[1];
+	vc->old_buf[1] = vc->old_buf[0];
+	vc->old_buf[0] = vc->buf;
+	vc->buf = bo;
 }
 
 bool
@@ -594,10 +596,11 @@ sna_copy_packed_data(struct sna_video *video,
 }
 
 bool
-sna_video_copy_data(struct sna_video *video,
+sna_video_copy_data(struct sna_video_crtc *vc,
 		    struct sna_video_frame *frame,
 		    const uint8_t *buf)
 {
+	struct sna_video *video = vc->video;
 	uint8_t *dst;
 
 	DBG(("%s: handle=%d, size=%dx%d [%d], pitch=[%d,%d] rotation=%d, is-texture=%d\n",
@@ -613,7 +616,7 @@ sna_video_copy_data(struct sna_video *video,
 	assert(frame->size);
 
 	/* In the common case, we can simply the upload in a single pwrite */
-	if (frame->rotation == RR_Rotate_0 && !video->tiled) {
+	if (frame->rotation == RR_Rotate_0 && !vc->tiled) {
 		DBG(("%s: unrotated, untiled fast paths: is-planar?=%d\n",
 		     __FUNCTION__, is_planar_fourcc(frame->id)));
 		if (is_nv12_fourcc(frame->id)) {

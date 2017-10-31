@@ -73,11 +73,12 @@ static const XvImageRec gen4_Images[] = {
 static int sna_video_textured_stop(ddStopVideo_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
+	struct sna_video_crtc *vc = &video->crtc[0];
 
 	DBG(("%s()\n", __FUNCTION__));
 
 	RegionUninit(&video->clip);
-	sna_video_free_buffers(video);
+	sna_video_free_buffers(vc);
 
 	return Success;
 }
@@ -156,6 +157,7 @@ static int
 sna_video_textured_put_image(ddPutImage_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
+	struct sna_video_crtc *vc = &video->crtc[0];
 	struct sna *sna = video->sna;
 	struct sna_video_frame frame;
 	PixmapPtr pixmap = get_drawable_pixmap(draw);
@@ -233,7 +235,7 @@ sna_video_textured_put_image(ddPutImage_ARGS)
 		frame.image.x2 = frame.width;
 		frame.image.y2 = frame.height;
 	} else {
-		if (!sna_video_copy_data(video, &frame, buf)) {
+		if (!sna_video_copy_data(vc, &frame, buf)) {
 			DBG(("%s: failed to copy frame\n", __FUNCTION__));
 			kgem_bo_destroy(&sna->kgem, frame.bo);
 			return BadAlloc;
@@ -422,11 +424,15 @@ void sna_video_textured_setup(struct sna *sna, ScreenPtr screen)
 	for (i = 0; i < nports; i++) {
 		struct sna_video *v = &video[i];
 		XvPortPtr port = &adaptor->pPorts[i];
+		int j;
 
 		v->sna = sna;
 		v->textured = true;
 		v->alignment = 4;
 		v->SyncToVblank = (sna->flags & SNA_NO_WAIT) == 0;
+
+		for (j = 0; j < ARRAY_SIZE(v->crtc); j++)
+			v->crtc[j].video = v;
 
 		RegionNull(&v->clip);
 
