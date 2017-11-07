@@ -495,7 +495,9 @@ extern int sna_page_flip(struct sna *sna,
 pure static inline struct sna *
 to_sna(ScrnInfoPtr scrn)
 {
-	return (struct sna *)(scrn->driverPrivate);
+	struct sna *sna = scrn->driverPrivate;
+	assert(sna->scrn == scrn);
+	return sna;
 }
 
 pure static inline struct sna *
@@ -506,7 +508,9 @@ to_sna_from_screen(ScreenPtr screen)
 
 pure static inline ScreenPtr to_screen_from_sna(struct sna *sna)
 {
-	return xf86ScrnToScreen(sna->scrn);
+	ScreenPtr screen = xf86ScrnToScreen(sna->scrn);
+	assert(sna == to_sna_from_screen(screen));
+	return screen;
 }
 
 pure static inline struct sna *
