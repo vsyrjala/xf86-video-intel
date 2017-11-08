@@ -7524,7 +7524,7 @@ bool sna_mode_pre_init(ScrnInfoPtr scrn, struct sna *sna)
 	}
 
 	probe_capabilities(sna);
-	sna->mode.hidden = 1;
+	sna->mode.hidden = !isGPU(scrn); /* No DPMS passthrough */
 
 	if (!xf86GetOptValInteger(sna->Options, OPTION_VIRTUAL, &num_fake))
 		num_fake = 1;
