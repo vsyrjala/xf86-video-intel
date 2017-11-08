@@ -1216,10 +1216,25 @@ sna_set_shared_pixmap_backing(PixmapPtr pixmap, void *fd_handle)
 	if (priv == NULL)
 		return FALSE;
 
+	if (priv->pinned & ~PIN_PRIME)
+		return FALSE;
+
+	assert(!priv->flush);
+
+	if (priv->gpu_bo) {
+		priv->clear = false;
+		sna_damage_destroy(&priv->gpu_damage);
+		kgem_bo_destroy(&sna->kgem, priv->gpu_bo);
+		priv->gpu_bo = NULL;
+		priv->pinned = 0;
+	}
+
 	assert(!priv->pinned);
-	assert(priv->gpu_bo == NULL);
+
 	assert(priv->cpu_bo == NULL);
 	assert(priv->cpu_damage == NULL);
+
+	assert(priv->gpu_bo == NULL);
 	assert(priv->gpu_damage == NULL);
 
 	bo = kgem_create_for_prime(&sna->kgem,
