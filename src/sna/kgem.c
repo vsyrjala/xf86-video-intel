@@ -4729,10 +4729,8 @@ discard:
 			if (first)
 				continue;
 
-			if (!kgem_set_tiling(kgem, bo, I915_TILING_NONE, 0)) {
-				kgem_bo_free(kgem, bo);
-				break;
-			}
+			if (!kgem_set_tiling(kgem, bo, I915_TILING_NONE, 0))
+				continue;
 		}
 		assert(bo->tiling == I915_TILING_NONE);
 		bo->pitch = 0;
@@ -5466,7 +5464,8 @@ struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 
 					if (!kgem_set_tiling(kgem, bo,
 							     tiling, pitch)) {
-						kgem_bo_free(kgem, bo);
+						bo->scanout = false;
+						__kgem_bo_destroy(kgem, bo);
 						break;
 					}
 				}
@@ -5480,7 +5479,8 @@ struct kgem_bo *kgem_create_2d(struct kgem *kgem,
 				arg.handle = bo->handle;
 
 				if (do_ioctl(kgem->fd, DRM_IOCTL_MODE_ADDFB, &arg)) {
-					kgem_bo_free(kgem, bo);
+					bo->scanout = false;
+					__kgem_bo_destroy(kgem, bo);
 					break;
 				}
 
@@ -5787,13 +5787,10 @@ search_active:
 					continue;
 
 				if (!kgem_set_tiling(kgem, bo, tiling, pitch)) {
-					if (kgem->gen >= 040 && !exact) {
-						set_gpu_tiling(kgem, bo,
-							       tiling, pitch);
-					} else {
-						kgem_bo_free(kgem, bo);
-						break;
-					}
+					if (exact || kgem->gen < 040)
+						continue;
+
+					set_gpu_tiling(kgem, bo, tiling, pitch);
 				}
 				assert(bo->tiling == tiling);
 				assert(bo->pitch >= pitch);
@@ -5879,12 +5876,12 @@ search_inactive:
 		}
 
 		if (!kgem_set_tiling(kgem, bo, tiling, pitch)) {
-			if (kgem->gen >= 040 && !exact) {
-				set_gpu_tiling(kgem, bo, tiling, pitch);
-			} else {
+			if (exact || kgem->gen < 040) {
 				kgem_bo_free(kgem, bo);
 				break;
 			}
+
+			set_gpu_tiling(kgem, bo, tiling, pitch);
 		}
 
 		if (bo->purged && !kgem_bo_clear_purgeable(kgem, bo)) {
@@ -5945,12 +5942,10 @@ search_inactive:
 			__kgem_bo_clear_busy(bo);
 
 			if (!kgem_set_tiling(kgem, bo, tiling, pitch)) {
-				if (kgem->gen >= 040 && !exact) {
-					set_gpu_tiling(kgem, bo, tiling, pitch);
-				} else {
-					kgem_bo_free(kgem, bo);
+				if (exact || kgem->gen < 040)
 					goto no_retire;
-				}
+
+				set_gpu_tiling(kgem, bo, tiling, pitch);
 			}
 			assert(bo->tiling == tiling);
 			assert(bo->pitch >= pitch);
