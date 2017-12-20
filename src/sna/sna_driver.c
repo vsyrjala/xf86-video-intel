@@ -554,12 +554,12 @@ static Bool sna_pre_init(ScrnInfoPtr scrn, int probe)
 		probe = (uintptr_t)scrn->driverPrivate & 1;
 		sna->info = (void *)((uintptr_t)scrn->driverPrivate & ~3);
 		scrn->driverPrivate = sna;
+		sna->scrn = scrn;
 
 		sna->cpu_features = sna_cpu_detect();
 		sna->acpi.fd = sna_acpi_open();
 	}
 	sna = to_sna(scrn);
-	sna->scrn = scrn;
 	sna->pEnt = pEnt;
 	sna->flags = probe;
 
