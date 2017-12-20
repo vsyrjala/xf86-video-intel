@@ -3600,7 +3600,6 @@ static void kgem_finish_buffers(struct kgem *kgem)
 				assert(bo->used <= bytes(shrink));
 				map = kgem_bo_map__cpu(kgem, shrink);
 				if (map) {
-					kgem_bo_sync__cpu(kgem, shrink);
 					memcpy(map, bo->mem, bo->used);
 
 					shrink->target_handle =
