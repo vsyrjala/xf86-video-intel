@@ -253,6 +253,11 @@ static const struct gt_info glk_gt_info = {
 	.urb = { .max_vs_entries = 320 },
 };
 
+static const struct gt_info cfl_gt_info = {
+	.name = "Coffeelake (gen9)",
+	.urb = { .max_vs_entries = 960 },
+};
+
 static bool is_skl(struct sna *sna)
 {
 	return sna->kgem.gen == 0110;
@@ -273,6 +278,10 @@ static bool is_glk(struct sna *sna)
 	return sna->kgem.gen == 0113;
 }
 
+static bool is_cfl(struct sna *sna)
+{
+	return sna->kgem.gen == 0114;
+}
 
 static inline bool too_large(int width, int height)
 {
@@ -4056,6 +4065,8 @@ static bool gen9_render_setup(struct sna *sna)
 		state->info = &kbl_gt_info;
 	if (is_glk(sna))
 		state->info = &glk_gt_info;
+	if (is_cfl(sna))
+		state->info = &cfl_gt_info;
 
 	sna_static_stream_init(&general);
 
