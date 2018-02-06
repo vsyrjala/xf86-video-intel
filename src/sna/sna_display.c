@@ -267,7 +267,6 @@ struct sna_output {
 	uint32_t edid_blob_id;
 	uint32_t edid_len;
 	void *edid_raw;
-	xf86MonPtr fake_edid_mon;
 	void *fake_edid_raw;
 
 	bool has_panel_limits;
@@ -4189,13 +4188,21 @@ static DisplayModePtr
 sna_output_override_edid(xf86OutputPtr output)
 {
 	struct sna_output *sna_output = output->driver_private;
+	xf86MonPtr mon = NULL;
 
-	if (sna_output->fake_edid_mon == NULL)
+	if (sna_output->fake_edid_raw == NULL)
 		return NULL;
 
-	xf86OutputSetEDID(output, sna_output->fake_edid_mon);
-	return xf86DDCGetModes(output->scrn->scrnIndex,
-			       sna_output->fake_edid_mon);
+	mon = xf86InterpretEDID(output->scrn->scrnIndex, sna_output->fake_edid_raw);
+	if (mon == NULL) {
+		return NULL;
+	}
+
+	mon->flags |= MONITOR_EDID_COMPLETE_RAWDATA;
+
+	xf86OutputSetEDID(output, mon);
+
+	return xf86DDCGetModes(output->scrn->scrnIndex, mon);
 }
 
 static DisplayModePtr
@@ -4983,7 +4990,6 @@ sna_output_load_fake_edid(xf86OutputPtr output)
 	FILE *file;
 	void *raw;
 	int size;
-	xf86MonPtr mon;
 
 	filename = fake_edid_name(output);
 	if (filename == NULL)
@@ -5015,16 +5021,6 @@ sna_output_load_fake_edid(xf86OutputPtr output)
 	}
 	fclose(file);
 
-	mon = xf86InterpretEDID(output->scrn->scrnIndex, raw);
-	if (mon == NULL) {
-		free(raw);
-		goto err;
-	}
-
-	if (mon && size > 128)
-		mon->flags |= MONITOR_EDID_COMPLETE_RAWDATA;
-
-	sna_output->fake_edid_mon = mon;
 	sna_output->fake_edid_raw = raw;
 
 	xf86DrvMsg(output->scrn->scrnIndex, X_CONFIG,
