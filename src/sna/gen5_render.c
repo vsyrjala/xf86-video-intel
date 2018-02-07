@@ -294,7 +294,7 @@ static uint32_t gen5_get_card_format(PictFormat format)
 		return GEN5_SURFACEFORMAT_R8G8B8A8_UNORM;
 	case PICT_x8b8g8r8:
 		return GEN5_SURFACEFORMAT_R8G8B8X8_UNORM;
-#ifdef PICT_a2r10g10b10
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,6,99,900,0)
 	case PICT_a2r10g10b10:
 		return GEN5_SURFACEFORMAT_B10G10R10A2_UNORM;
 	case PICT_x2r10g10b10:
@@ -324,7 +324,7 @@ static uint32_t gen5_get_dest_format(PictFormat format)
 	case PICT_a8b8g8r8:
 	case PICT_x8b8g8r8:
 		return GEN5_SURFACEFORMAT_R8G8B8A8_UNORM;
-#ifdef PICT_a2r10g10b10
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,6,99,900,0)
 	case PICT_a2r10g10b10:
 	case PICT_x2r10g10b10:
 		return GEN5_SURFACEFORMAT_B10G10R10A2_UNORM;
