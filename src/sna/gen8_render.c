@@ -3798,6 +3798,9 @@ static unsigned select_video_kernel(const struct sna_video_frame *frame)
 	case FOURCC_XVMC:
 		return GEN8_WM_KERNEL_VIDEO_PLANAR;
 
+	case FOURCC_NV12:
+		return GEN8_WM_KERNEL_VIDEO_NV12;
+
 	case FOURCC_RGB888:
 	case FOURCC_RGB565:
 		return GEN8_WM_KERNEL_VIDEO_RGB;
