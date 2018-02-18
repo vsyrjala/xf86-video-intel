@@ -89,7 +89,7 @@
 #define PS_KERNEL_NUM_GRF   32
 #define PS_MAX_THREADS	    72
 
-static const uint32_t ps_kernel_packed_static[][4] = {
+static const uint32_t ps_kernel_packed_bt601_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_argb.g5b"
@@ -97,7 +97,7 @@ static const uint32_t ps_kernel_packed_static[][4] = {
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_planar_static[][4] = {
+static const uint32_t ps_kernel_planar_bt601_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_planar.g5b"
@@ -105,11 +105,35 @@ static const uint32_t ps_kernel_planar_static[][4] = {
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_nv12_static[][4] = {
+static const uint32_t ps_kernel_nv12_bt601_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_nv12.g5b"
 #include "exa_wm_yuv_rgb_bt601.g5b"
+#include "exa_wm_write.g5b"
+};
+
+static const uint32_t ps_kernel_packed_bt709_static[][4] = {
+#include "exa_wm_xy.g5b"
+#include "exa_wm_src_affine.g5b"
+#include "exa_wm_src_sample_argb.g5b"
+#include "exa_wm_yuv_rgb_bt709.g5b"
+#include "exa_wm_write.g5b"
+};
+
+static const uint32_t ps_kernel_planar_bt709_static[][4] = {
+#include "exa_wm_xy.g5b"
+#include "exa_wm_src_affine.g5b"
+#include "exa_wm_src_sample_planar.g5b"
+#include "exa_wm_yuv_rgb_bt709.g5b"
+#include "exa_wm_write.g5b"
+};
+
+static const uint32_t ps_kernel_nv12_bt709_static[][4] = {
+#include "exa_wm_xy.g5b"
+#include "exa_wm_src_affine.g5b"
+#include "exa_wm_src_sample_nv12.g5b"
+#include "exa_wm_yuv_rgb_bt709.g5b"
 #include "exa_wm_write.g5b"
 };
 
@@ -137,9 +161,13 @@ static const struct wm_kernel_info {
 	NOKERNEL(WM_KERNEL_OPACITY, brw_wm_kernel__affine_opacity, true),
 	NOKERNEL(WM_KERNEL_OPACITY_P, brw_wm_kernel__projective_opacity, true),
 
-	KERNEL(WM_KERNEL_VIDEO_PLANAR, ps_kernel_planar_static, false),
-	KERNEL(WM_KERNEL_VIDEO_NV12, ps_kernel_nv12_static, false),
-	KERNEL(WM_KERNEL_VIDEO_PACKED, ps_kernel_packed_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT601, ps_kernel_planar_bt601_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT601, ps_kernel_nv12_bt601_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT601, ps_kernel_packed_bt601_static, false),
+
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT709, ps_kernel_planar_bt709_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT709, ps_kernel_nv12_bt709_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT709, ps_kernel_packed_bt709_static, false),
 };
 #undef KERNEL
 
@@ -1354,6 +1382,29 @@ static void gen5_video_bind_surfaces(struct sna *sna,
 	gen5_emit_state(sna, op, offset | dirty);
 }
 
+static unsigned select_video_kernel(const struct sna_video *video,
+				    const struct sna_video_frame *frame)
+{
+	switch (frame->id) {
+	case FOURCC_YV12:
+	case FOURCC_I420:
+	case FOURCC_XVMC:
+		return video->colorspace ?
+			WM_KERNEL_VIDEO_PLANAR_BT709 :
+			WM_KERNEL_VIDEO_PLANAR_BT601;
+
+	case FOURCC_NV12:
+		return video->colorspace ?
+			WM_KERNEL_VIDEO_NV12_BT709 :
+			WM_KERNEL_VIDEO_NV12_BT601;
+
+	default:
+		return video->colorspace ?
+			WM_KERNEL_VIDEO_PACKED_BT709 :
+			WM_KERNEL_VIDEO_PACKED_BT601;
+	}
+}
+
 static bool
 gen5_render_video(struct sna *sna,
 		  struct sna_video *video,
@@ -1392,9 +1443,7 @@ gen5_render_video(struct sna *sna,
 	tmp.src.repeat = SAMPLER_EXTEND_PAD;
 	tmp.src.bo = frame->bo;
 	tmp.mask.bo = NULL;
-	tmp.u.gen5.wm_kernel =
-		is_nv12_fourcc(frame->id) ? WM_KERNEL_VIDEO_NV12 :
-		is_planar_fourcc(frame->id) ? WM_KERNEL_VIDEO_PLANAR : WM_KERNEL_VIDEO_PACKED;
+	tmp.u.gen5.wm_kernel = select_video_kernel(video, frame);
 	tmp.u.gen5.ve_id = 2;
 	tmp.is_affine = true;
 	tmp.floats_per_vertex = 3;
