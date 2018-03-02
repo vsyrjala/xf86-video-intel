@@ -100,6 +100,9 @@ struct sna_video {
 	unsigned color_key_changed;
 	bool has_color_key;
 
+	unsigned colorspace;
+	unsigned colorspace_changed;
+
 	/** YUV data buffers */
 	struct kgem_bo *old_buf[2];
 	struct kgem_bo *buf;
