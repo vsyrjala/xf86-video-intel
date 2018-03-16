@@ -315,6 +315,10 @@ static const SymTabRec intel_chipsets[] = {
 	{0x3E96, "HD Graphics"},
 	{0x3E9B, "HD Graphics"},
 	{0x3E94, "HD Graphics"},
+	{0x3EA5, "HD Graphics"},
+	{0x3EA6, "HD Graphics"},
+	{0x3EA7, "HD Graphics"},
+	{0x3EA8, "HD Graphics"},
 
 	/* When adding new identifiers, also update:
 	 * 1. intel_identify()
@@ -373,6 +377,7 @@ static const struct pci_id_match intel_device_match[] = {
 
 	INTEL_CFL_S_IDS(&intel_coffeelake_info),
 	INTEL_CFL_H_IDS(&intel_coffeelake_info),
+	INTEL_CFL_U_IDS(&intel_coffeelake_info),
 
 	INTEL_VGA_DEVICE(PCI_MATCH_ANY, &intel_generic_info),
 #endif
