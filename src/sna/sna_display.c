@@ -8894,8 +8894,10 @@ static void shadow_flip_handler(struct drm_event_vblank *e,
 {
 	struct sna *sna = data;
 
-	if (!sna->mode.shadow_wait)
-		sna_mode_redisplay(sna);
+	sna->timer_active |= 1 << FLUSH_TIMER;
+	sna->timer_expire[FLUSH_TIMER] =
+		e->tv_sec * 1000 + e->tv_usec / 1000 +
+		sna->vblank_interval / 2;
 }
 
 void sna_shadow_set_crtc(struct sna *sna,
