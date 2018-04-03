@@ -9045,6 +9045,12 @@ void sna_mode_redisplay(struct sna *sna)
 	if (sna->mode.dirty)
 		return;
 
+	if (sna->mode.flip_active) {
+		DBG(("%s: %d outstanding flips\n",
+		     __FUNCTION__, sna->mode.flip_active));
+		return;
+	}
+
 	region = DamageRegion(sna->mode.shadow_damage);
 	if (RegionNil(region))
 		return;
@@ -9053,23 +9059,6 @@ void sna_mode_redisplay(struct sna *sna)
 	     __FUNCTION__, region_num_rects(region),
 	     region->extents.x1, region->extents.y1,
 	     region->extents.x2, region->extents.y2));
-
-	if (sna->mode.flip_active) {
-		DBG(("%s: checking for %d outstanding flip completions\n",
-		     __FUNCTION__, sna->mode.flip_active));
-
-		sna->mode.dirty = true;
-		while (sna->mode.flip_active && sna_mode_wakeup(sna))
-			;
-		sna->mode.dirty = false;
-
-		DBG(("%s: now %d outstanding flip completions (enabled? %d)\n",
-		     __FUNCTION__,
-		     sna->mode.flip_active,
-		     sna->mode.shadow_enabled));
-		if (sna->mode.flip_active || !sna->mode.shadow_enabled)
-			return;
-	}
 
 	if (!move_crtc_to_gpu(sna)) {
 		DBG(("%s: forcing scanout update using the CPU\n", __FUNCTION__));
