@@ -460,12 +460,6 @@ sna_present_vblank_handler(struct drm_event_vblank *event)
 
 	msc = sna_crtc_record_event(info->crtc, event);
 
-	if (info->sna->mode.shadow_wait) {
-		DBG(("%s: recursed from TearFree\n", __FUNCTION__));
-		if (TimerSet(NULL, 0, 1, sna_fake_vblank_handler, info))
-			return;
-	}
-
 	vblank_complete(info, ust64(event->tv_sec, event->tv_usec), msc);
 }
 

@@ -310,7 +310,6 @@ struct sna {
 		unsigned flip_active;
 		unsigned hidden;
 		bool shadow_enabled;
-		bool shadow_wait;
 		bool dirty;
 
 		struct drm_event_vblank *shadow_events;

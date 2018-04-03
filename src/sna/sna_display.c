@@ -1703,8 +1703,8 @@ static bool wait_for_shadow(struct sna *sna,
 	int flip_active;
 	bool ret = true;
 
-	DBG(("%s: enabled? %d waiting? %d, flags=%x, flips=%d, pixmap=%ld [front?=%d], handle=%d, shadow=%d\n",
-	     __FUNCTION__, sna->mode.shadow_enabled, sna->mode.shadow_wait,
+	DBG(("%s: enabled? %d flags=%x, flips=%d, pixmap=%ld [front?=%d], handle=%d, shadow=%d\n",
+	     __FUNCTION__, sna->mode.shadow_enabled,
 	     flags, sna->mode.flip_active,
 	     pixmap->drawable.serialNumber, pixmap == sna->front,
 	     priv->gpu_bo->handle, sna->mode.shadow->handle));
@@ -1716,7 +1716,6 @@ static bool wait_for_shadow(struct sna *sna,
 		goto done;
 
 	assert(sna->mode.shadow_damage);
-	assert(!sna->mode.shadow_wait);
 
 	if ((flags & MOVE_WRITE) == 0) {
 		if ((flags & __MOVE_SCANOUT) == 0) {
@@ -1758,7 +1757,6 @@ static bool wait_for_shadow(struct sna *sna,
 	}
 
 	assert(sna->mode.shadow_active);
-	sna->mode.shadow_wait = true;
 
 	flip_active = sna->mode.flip_active;
 	if (flip_active) {
@@ -1766,21 +1764,6 @@ static bool wait_for_shadow(struct sna *sna,
 		list_for_each_entry(crtc, &sna->mode.shadow_crtc, shadow_link)
 			flip_active -= crtc->flip_pending;
 		DBG(("%s: %d flips still pending, shadow flip_active=%d\n",
-		     __FUNCTION__, sna->mode.flip_active, flip_active));
-	}
-	if (flip_active) {
-		/* raw cmd to avoid setting wedged in the middle of an op */
-		drmIoctl(sna->kgem.fd, DRM_IOCTL_I915_GEM_THROTTLE, 0);
-		sna->kgem.need_throttle = false;
-
-		while (flip_active && sna_mode_wakeup(sna)) {
-			struct sna_crtc *crtc;
-
-			flip_active = sna->mode.flip_active;
-			list_for_each_entry(crtc, &sna->mode.shadow_crtc, shadow_link)
-				flip_active -= crtc->flip_pending;
-		}
-		DBG(("%s: after waiting %d flips outstanding, flip_active=%d\n",
 		     __FUNCTION__, sna->mode.flip_active, flip_active));
 	}
 
@@ -1805,8 +1788,6 @@ static bool wait_for_shadow(struct sna *sna,
 		sna->mode.shadow_region.extents.y2 = pixmap->drawable.height;
 		sna->mode.shadow_region.data = NULL;
 	}
-	assert(sna->mode.shadow_wait);
-	sna->mode.shadow_wait = false;
 
 	if (bo->refcnt > 1) {
 		bo = kgem_create_2d(&sna->kgem,
@@ -1913,9 +1894,6 @@ done:
 
 	priv->move_to_gpu_data = NULL;
 	priv->move_to_gpu = NULL;
-
-	assert(!sna->mode.shadow_wait);
-	flush_events(sna);
 
 	assert(sna->mode.shadow->active_scanout);
 	return ret;
@@ -9447,6 +9425,7 @@ fixup_flip:
 
 int sna_mode_wakeup(struct sna *sna)
 {
+	bool defer_vblanks = sna->mode.flip_active && sna->mode.shadow_enabled;
 	char buffer[1024];
 	int len, i;
 	int ret = 0;
@@ -9457,14 +9436,14 @@ again:
 	 * event from drm.
 	 */
 	if (!event_pending(sna->kgem.fd))
-		return ret;
+		goto done;
 
 	/* The DRM read semantics guarantees that we always get only
 	 * complete events.
 	 */
 	len = read(sna->kgem.fd, buffer, sizeof (buffer));
 	if (len < (int)sizeof(struct drm_event))
-		return ret;
+		goto done;
 
 	/* Note that we cannot rely on the passed in struct sna matching
 	 * the struct sna used for the vblank event (in case it was submitted
@@ -9479,7 +9458,7 @@ again:
 		struct drm_event *e = (struct drm_event *)&buffer[i];
 		switch (e->type) {
 		case DRM_EVENT_VBLANK:
-			if (sna->mode.shadow_wait)
+			if (defer_vblanks)
 				defer_event(sna, e);
 			else if (((uintptr_t)((struct drm_event_vblank *)e)->user_data) & 2)
 				sna_present_vblank_handler((struct drm_event_vblank *)e);
@@ -9550,4 +9529,8 @@ again:
 	}
 
 	goto again;
+
+done:
+	flush_events(sna);
+	return ret;
 }
