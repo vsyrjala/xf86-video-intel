@@ -1792,23 +1792,18 @@ static bool wait_for_shadow(struct sna *sna,
 				    pixmap->drawable.bitsPerPixel,
 				    priv->gpu_bo->tiling,
 				    CREATE_EXACT | CREATE_SCANOUT);
-		if (bo != NULL) {
-			DBG(("%s: replacing still-attached GPU bo handle=%d, flips=%d\n",
-			     __FUNCTION__, priv->gpu_bo->tiling, sna->mode.flip_active));
+		if (bo == NULL)
+			return false;
 
-			RegionUninit(&sna->mode.shadow_region);
-			sna->mode.shadow_region.extents.x1 = 0;
-			sna->mode.shadow_region.extents.y1 = 0;
-			sna->mode.shadow_region.extents.x2 = pixmap->drawable.width;
-			sna->mode.shadow_region.extents.y2 = pixmap->drawable.height;
-			sna->mode.shadow_region.data = NULL;
-		} else {
-			while (sna->mode.flip_active &&
-			       sna_mode_wait_for_event(sna))
-				sna_mode_wakeup(sna);
+		DBG(("%s: replacing still-attached GPU bo handle=%d, flips=%d\n",
+		     __FUNCTION__, priv->gpu_bo->tiling, sna->mode.flip_active));
 
-			bo = sna->mode.shadow;
-		}
+		RegionUninit(&sna->mode.shadow_region);
+		sna->mode.shadow_region.extents.x1 = 0;
+		sna->mode.shadow_region.extents.y1 = 0;
+		sna->mode.shadow_region.extents.x2 = pixmap->drawable.width;
+		sna->mode.shadow_region.extents.y2 = pixmap->drawable.height;
+		sna->mode.shadow_region.data = NULL;
 	}
 	assert(sna->mode.shadow_wait);
 	sna->mode.shadow_wait = false;
