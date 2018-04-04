@@ -2370,6 +2370,9 @@ use_gtt:
 		if (dst == NULL || src == NULL)
 			return false;
 
+		kgem_bo_sync__gtt(&sna->kgem, dst_bo);
+		kgem_bo_sync__gtt(&sna->kgem, src_bo);
+
 		detile = NULL;
 	} else {
 		if (dst == dst_bo->map__wc)
