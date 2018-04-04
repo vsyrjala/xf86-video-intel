@@ -2586,6 +2586,11 @@ static struct kgem_bo *sna_crtc_attach(xf86CrtcPtr crtc)
 	}
 	sna_crtc->rotation = RR_Rotate_0;
 
+	if (sna_crtc->cache_bo) {
+		kgem_bo_destroy(&sna->kgem, sna_crtc->cache_bo);
+		sna_crtc->cache_bo = NULL;
+	}
+
 	if (use_shadow(sna, crtc)) {
 		PixmapPtr front;
 		unsigned long tiled_limit;
