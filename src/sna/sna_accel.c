@@ -13732,10 +13732,10 @@ sna_poly_fill_rect_stippled_1_blt(DrawablePtr drawable,
 			uint8_t *dst, *src;
 			uint32_t *b;
 
-			DBG(("%s: rect (%d, %d)x(%d, %d) stipple [%d,%d]\n",
+			DBG(("%s: rect (%d, %d)x(%d, %d) stipple [%d,%d, src_stride=%d]\n",
 			     __FUNCTION__,
 			     r->x, r->y, r->width, r->height,
-			     bx1, bx2));
+			     bx1, bx2, bstride*bh));
 
 			src_stride = bstride*bh;
 			assert(src_stride > 0);
@@ -13898,6 +13898,12 @@ sna_poly_fill_rect_stippled_1_blt(DrawablePtr drawable,
 		if (!region_maybe_clip(&clip, gc->pCompositeClip))
 			return true;
 
+		DBG(("%s: clip.extents=[(%d, %d), (%d, %d)] region?=%d\n",
+		     __FUNCTION__,
+		     clip.extents.x1, clip.extents.y1,
+		     clip.extents.x2, clip.extents.y2,
+		     clip.data ? clip.data->numRects : 0));
+
 		pat.x = origin->x + drawable->x;
 		pat.y = origin->y + drawable->y;
 
@@ -13926,11 +13932,11 @@ sna_poly_fill_rect_stippled_1_blt(DrawablePtr drawable,
 				bh = box.y2 - box.y1;
 				bstride = ALIGN(bw, 2);
 
-				DBG(("%s: rect (%d, %d)x(%d, %d), box (%d,%d),(%d,%d) stipple [%d,%d], pitch=%d, stride=%d\n",
+				DBG(("%s: rect (%d, %d)x(%d, %d), box (%d,%d),(%d,%d) stipple [%d,%d], pitch=%d, stride=%d, len=%d\n",
 				     __FUNCTION__,
 				     r->x, r->y, r->width, r->height,
 				     box.x1, box.y1, box.x2, box.y2,
-				     bx1, bx2, bw, bstride));
+				     bx1, bx2, bw, bstride, bstride*bh));
 
 				src_stride = bstride*bh;
 				assert(src_stride > 0);
