@@ -14047,7 +14047,7 @@ sna_poly_fill_rect_stippled_1_blt(DrawablePtr drawable,
 										I915_GEM_DOMAIN_RENDER |
 										KGEM_RELOC_FENCED,
 										0);
-							*(uint64_t *)(b+5) =
+							*(uint64_t *)(b+6) =
 								kgem_add_reloc64(&sna->kgem, sna->kgem.nbatch + 6, upload,
 										I915_GEM_DOMAIN_RENDER << 16 |
 										KGEM_RELOC_FENCED,
