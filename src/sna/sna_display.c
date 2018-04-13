@@ -8816,7 +8816,8 @@ sna_crtc_redisplay(xf86CrtcPtr crtc, RegionPtr region, struct kgem_bo *bo)
 	     region->extents.x2, region->extents.y2,
 	     region_num_rects(region)));
 
-	assert(!wedged(sna));
+	if (wedged(sna))
+		goto fallback;
 
 	if (priv->clear) {
 		RegionRec whole;
@@ -8861,10 +8862,13 @@ sna_crtc_redisplay(xf86CrtcPtr crtc, RegionPtr region, struct kgem_bo *bo)
 			return;
 	}
 
-	if (can_render(sna))
+	if (can_render(sna)) {
 		sna_crtc_redisplay__composite(crtc, region, bo);
-	else
-		sna_crtc_redisplay__fallback(crtc, region, bo);
+		return;
+	}
+
+fallback:
+	sna_crtc_redisplay__fallback(crtc, region, bo);
 }
 
 static void shadow_flip_handler(struct drm_event_vblank *e,
