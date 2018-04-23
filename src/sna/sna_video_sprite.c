@@ -433,13 +433,16 @@ static int sna_video_sprite_put_image(ddPutImage_ARGS)
 	for (i = 0; i < video->sna->mode.num_real_crtc; i++) {
 		xf86CrtcPtr crtc = config->crtc[i];
 		struct sna_video_frame frame;
-		BoxRec dst = draw_extents;
+		BoxRec dst;
 		int pipe;
 		INT32 x1, x2, y1, y2;
 		RegionRec reg;
 		Rotation rotation;
 		bool cache_bo;
+		bool hw_scaling = has_hw_scaling(sna, video);
 
+retry:
+		dst = draw_extents;
 		pipe = sna_crtc_pipe(crtc);
 
 		sna_video_frame_init(video, format->id, width, height, &frame);
@@ -540,7 +543,7 @@ off:
 			cache_bo = true;
 		}
 
-		if (!has_hw_scaling(sna, video) && sna->render.video &&
+		if (!hw_scaling && sna->render.video &&
 		    !((frame.src.x2 - frame.src.x1) == (dst.x2 - dst.x1) &&
 		      (frame.src.y2 - frame.src.y1) == (dst.y2 - dst.y1))) {
 			ScreenPtr screen = to_screen_from_sna(sna);
@@ -603,8 +606,14 @@ off:
 		else
 			kgem_bo_destroy(&sna->kgem, frame.bo);
 
-		if (ret != Success)
+		if (ret != Success) {
+			/* retry with GPU scaling */
+			if (hw_scaling) {
+				hw_scaling = false;
+				goto retry;
+			}
 			goto err;
+		}
 	}
 
 	sna_video_fill_colorkey(video, &clip);
