@@ -111,7 +111,6 @@ struct sna_video {
 	int alignment;
 	bool tiled;
 	bool textured;
-	int plane;
 
 	struct kgem_bo *bo[4];
 	RegionRec clip;

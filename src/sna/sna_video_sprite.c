@@ -381,9 +381,6 @@ sna_video_sprite_show(struct sna *sna,
 
 	if (drmIoctl(sna->kgem.fd, LOCAL_IOCTL_MODE_SETPLANE, &s)) {
 		DBG(("SET_PLANE failed: ret=%d\n", errno));
-		memset(&s, 0, sizeof(s));
-		s.plane_id = video->plane;
-		(void)drmIoctl(sna->kgem.fd, LOCAL_IOCTL_MODE_SETPLANE, &s);
 		if (video->bo[pipe]) {
 			kgem_bo_destroy(&sna->kgem, video->bo[pipe]);
 			video->bo[pipe] = NULL;
