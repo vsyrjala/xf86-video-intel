@@ -3560,6 +3560,82 @@ sna_crtc_find_planes(struct sna *sna, struct sna_crtc *crtc)
 		free(planes);
 }
 
+static bool plane_has_format(const uint32_t formats[],
+			     int count_formats,
+			     uint32_t format)
+{
+	int i;
+
+	for (i = 0; i < count_formats; i++) {
+		if (formats[i] == format)
+			return true;
+	}
+
+	return false;
+}
+
+bool sna_has_sprite_format(struct sna *sna, uint32_t format)
+{
+	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(sna->scrn);
+	int i;
+
+	if (sna->mode.num_real_crtc == 0)
+		return false;
+
+	for (i = 0; i < sna->mode.num_real_crtc; i++) {
+		struct sna_crtc *sna_crtc = to_sna_crtc(config->crtc[i]);
+		struct plane *plane;
+
+		list_for_each_entry(plane, &sna_crtc->sprites, link) {
+			struct local_mode_get_plane p;
+			uint32_t *formats;
+			int count_formats;
+			bool has_format;
+
+			VG_CLEAR(p);
+			p.plane_id = plane->id;
+			p.count_format_types = 0;
+			if (drmIoctl(sna->kgem.fd,
+				     LOCAL_IOCTL_MODE_GETPLANE,
+				     &p))
+				continue;
+			count_formats = p.count_format_types;
+
+			formats = calloc(count_formats, sizeof(formats[0]));
+			if (!formats)
+				continue;
+
+			p.count_format_types = count_formats;
+			p.format_type_ptr = (uintptr_t)formats;
+			if (drmIoctl(sna->kgem.fd,
+				     LOCAL_IOCTL_MODE_GETPLANE,
+				     &p)) {
+				free(formats);
+				continue;
+			}
+
+			assert(p.count_format_types == count_formats);
+
+			has_format = plane_has_format(formats,
+						      count_formats,
+						      format);
+
+			free(formats);
+
+			/*
+			 * As long as one plane supports the
+			 * format we declare it as supported.
+			 * Not all planes may support it, but
+			 * then the GPU fallback will kick in.
+			 */
+			if (has_format)
+				return true;
+		}
+	}
+
+	return false;
+}
+
 static void
 sna_crtc_init__rotation(struct sna *sna, struct sna_crtc *crtc)
 {

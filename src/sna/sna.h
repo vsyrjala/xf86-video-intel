@@ -636,6 +636,7 @@ extern bool sna_crtc_set_sprite_rotation(xf86CrtcPtr crtc, unsigned idx, uint32_
 extern void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc, unsigned idx, int colorspace);
 extern uint32_t sna_crtc_to_sprite(xf86CrtcPtr crtc, unsigned idx);
 extern bool sna_crtc_is_transformed(xf86CrtcPtr crtc);
+bool sna_has_sprite_format(struct sna *sna, uint32_t format);
 
 #define CRTC_VBLANK 0x7
 #define CRTC_ON 0x80000000
