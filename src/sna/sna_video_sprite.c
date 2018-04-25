@@ -46,6 +46,7 @@
 #define DRM_FORMAT_XRGB8888     fourcc_code('X', 'R', '2', '4') /* [31:0] x:R:G:B 8:8:8:8 little endian */
 #define DRM_FORMAT_YUYV         fourcc_code('Y', 'U', 'Y', 'V') /* [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian */
 #define DRM_FORMAT_UYVY         fourcc_code('U', 'Y', 'V', 'Y') /* [31:0] Y1:Cr0:Y0:Cb0 8:8:8:8 little endian */
+#define DRM_FORMAT_NV12         fourcc_code('N', 'V', '1', '2') /* 2x2 subsampled Cr:Cb plane */
 
 #define has_hw_scaling(sna, video) ((sna)->kgem.gen < 071 || \
 				    ((sna)->kgem.gen >= 0110 && (video)->AlwaysOnTop))
@@ -72,7 +73,12 @@ struct local_mode_set_plane {
 static Atom xvColorKey, xvAlwaysOnTop, xvSyncToVblank, xvColorspace;
 
 static XvFormatRec formats[] = { {15}, {16}, {24} };
-static const XvImageRec images[] = { XVIMAGE_YUY2, XVIMAGE_UYVY, XVMC_RGB888, XVMC_RGB565 };
+static const XvImageRec images[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
+				     XVMC_RGB888 };
+static const XvImageRec images_rgb565[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
+					    XVMC_RGB888, XVMC_RGB565 };
+static const XvImageRec images_nv12[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
+					  XVIMAGE_NV12, XVMC_RGB888, XVMC_RGB565 };
 static const XvAttributeRec attribs[] = {
 	{ XvSettable | XvGettable, 0, 1, (char *)"XV_COLORSPACE" }, /* BT.601, BT.709 */
 	{ XvSettable | XvGettable, 0, 0xffffff, (char *)"XV_COLORKEY" },
@@ -307,8 +313,6 @@ sna_video_sprite_show(struct sna *sna,
 		f.width = frame->width;
 		f.height = frame->height;
 		f.flags = 1 << 1; /* +modifiers */
-		f.handles[0] = frame->bo->handle;
-		f.pitches[0] = frame->pitch[0];
 
 		switch (frame->bo->tiling) {
 		case I915_TILING_NONE:
@@ -323,6 +327,18 @@ sna_video_sprite_show(struct sna *sna,
 			break;
 		}
 
+		if (is_nv12_fourcc(frame->id)) {
+			f.handles[0] = frame->bo->handle;
+			f.handles[1] = frame->bo->handle;
+			f.pitches[0] = frame->pitch[1];
+			f.pitches[1] = frame->pitch[0];
+			f.offsets[0] = 0;
+			f.offsets[1] = frame->UBufOffset;
+		} else {
+			f.handles[0] = frame->bo->handle;
+			f.pitches[0] = frame->pitch[0];
+		}
+
 		switch (frame->id) {
 		case FOURCC_RGB565:
 			f.pixel_format = DRM_FORMAT_RGB565;
@@ -331,6 +347,9 @@ sna_video_sprite_show(struct sna *sna,
 		case FOURCC_RGB888:
 			f.pixel_format = DRM_FORMAT_XRGB8888;
 			purged = sna->scrn->depth != 24;
+			break;
+		case FOURCC_NV12:
+			f.pixel_format = DRM_FORMAT_NV12;
 			break;
 		case FOURCC_UYVY:
 			f.pixel_format = DRM_FORMAT_UYVY;
@@ -633,7 +652,7 @@ static int sna_video_sprite_query(ddQueryImageAttributes_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
 	struct sna_video_frame frame;
-	int size;
+	int size, tmp;
 
 	if (*w > video->sna->mode.max_crtc_width)
 		*w = video->sna->mode.max_crtc_width;
@@ -652,6 +671,21 @@ static int sna_video_sprite_query(ddQueryImageAttributes_ARGS)
 			pitches[0] = frame.pitch[0];
 		}
 		size = 4;
+		break;
+
+	case FOURCC_NV12:
+		*h = (*h + 1) & ~1;
+		size = (*w + 3) & ~3;
+		if (pitches)
+			pitches[0] = size;
+		size *= *h;
+		if (offsets)
+			offsets[1] = size;
+		tmp = (*w + 3) & ~3;
+		if (pitches)
+			pitches[1] = tmp;
+		tmp *= (*h >> 1);
+		size += tmp;
 		break;
 
 	default:
@@ -752,10 +786,17 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 						 ARRAY_SIZE(formats));
 	adaptor->nAttributes = ARRAY_SIZE(attribs);
 	adaptor->pAttributes = (XvAttributeRec *)attribs;
-	adaptor->pImages = (XvImageRec *)images;
-	adaptor->nImages = 3;
-	if (sna_has_sprite_format(sna, DRM_FORMAT_RGB565))
-		adaptor->nImages = 4;
+
+	if (sna_has_sprite_format(sna, DRM_FORMAT_NV12)) {
+		adaptor->pImages = (XvImageRec *)images_nv12;
+		adaptor->nImages = ARRAY_SIZE(images_nv12);
+	} else if (sna_has_sprite_format(sna, DRM_FORMAT_RGB565)) {
+		adaptor->pImages = (XvImageRec *)images_rgb565;
+		adaptor->nImages = ARRAY_SIZE(images_rgb565);
+	} else {
+		adaptor->pImages = (XvImageRec *)images;
+		adaptor->nImages = ARRAY_SIZE(images);
+	}
 
 #if XORG_XV_VERSION < 2
 	adaptor->ddAllocatePort = sna_xv_alloc_port;
