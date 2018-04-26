@@ -270,9 +270,19 @@ sna_video_sprite_show(struct sna *sna,
 		if (drmIoctl(sna->kgem.fd,
 			     LOCAL_IOCTL_I915_SET_SPRITE_COLORKEY,
 			     &set)) {
-			xf86DrvMsg(sna->scrn->scrnIndex, X_ERROR,
-				   "failed to update color key, disabling future updates\n");
-			video->has_color_key = false;
+			memset(&s, 0, sizeof(s));
+			s.plane_id = sna_crtc_to_sprite(crtc, video->idx);
+
+			/* try to disable the plane first */
+			if (drmIoctl(video->sna->kgem.fd, LOCAL_IOCTL_MODE_SETPLANE, &s))
+				xf86DrvMsg(video->sna->scrn->scrnIndex, X_ERROR,
+					   "failed to disable plane\n");
+
+			if (drmIoctl(sna->kgem.fd, LOCAL_IOCTL_I915_SET_SPRITE_COLORKEY, &set)) {
+				xf86DrvMsg(sna->scrn->scrnIndex, X_ERROR,
+					   "failed to update color key, disabling future updates\n");
+				video->has_color_key = false;
+			}
 		}
 
 		video->color_key_changed &= ~(1 << pipe);
