@@ -415,6 +415,15 @@ sna_video_sprite_show(struct sna *sna,
 	return true;
 }
 
+static bool need_scaling(const struct sna_video_frame *frame,
+			 const BoxRec *dst)
+{
+	/* SKL+ need the plane scaler even for unscaled NV12 */
+	return frame->id == FOURCC_NV12 ||
+		frame->src.x2 - frame->src.x1 != dst->x2 - dst->x1 ||
+		frame->src.y2 - frame->src.y1 != dst->y2 - dst->y1;
+}
+
 static int sna_video_sprite_put_image(ddPutImage_ARGS)
 {
 	struct sna_video *video = port->devPriv.ptr;
@@ -562,8 +571,7 @@ off:
 		}
 
 		if (!hw_scaling && sna->render.video &&
-		    !((frame.src.x2 - frame.src.x1) == (dst.x2 - dst.x1) &&
-		      (frame.src.y2 - frame.src.y1) == (dst.y2 - dst.y1))) {
+		    need_scaling(&frame, &dst)) {
 			ScreenPtr screen = to_screen_from_sna(sna);
 			PixmapPtr scaled;
 			RegionRec r;
