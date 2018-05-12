@@ -316,9 +316,9 @@ AC_ARG_ENABLE(dri,
 	      [DRI=auto])
 AC_ARG_ENABLE(dri1,
 	      AS_HELP_STRING([--disable-dri1],
-			     [Disable DRI1 support [[default=yes]]]),
+			     [Disable DRI1 support [[default=auto]]]),
 	      [DRI1=$enableval],
-	      [DRI1=yes])
+	      [DRI1=auto])
 AC_ARG_ENABLE(dri2,
 	      AS_HELP_STRING([--disable-dri2],
 			     [Disable DRI2 support [[default=yes]]]),
