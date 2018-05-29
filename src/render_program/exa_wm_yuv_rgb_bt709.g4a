@@ -63,10 +63,10 @@ define(`Cbn_23',	`mask_sample_b_23')
      * B = Clamp ( 255/(235-16)(Y-16/255) +
      *             255/112(1.0-Kb)(Cb-128/255), 0, 1)
      *
-     * BT.601:
-     * Kr = 0.299
-     * Kb = 0.114
-     * Kg = (1.0 - Kr - Kb) = 0.587
+     * BT.709:
+     * Kr = .2126
+     * Kb = .0722
+     * Kg = (1.0 - Kr - Kb) = 0.7152
      */
 
     /* Normalize Y, Cb and Cr:
@@ -86,32 +86,25 @@ add (16)    Cbn<1>F		Cb<8,8,1>F	-0.501961F  { compr align1 };
      * R = Yn +
      *     Crn * 255/112 * (1.0 - Kr)
      */
-mov (8)    acc0<1>F		Yn_01<8,8,1>F		    { compr align1 };
-mac.sat(8) src_sample_r_01<1>F	Crn_01<8,8,1>F	1.596F	    { compr align1 };
+mov (16)    acc0<1>F		Yn<8,8,1>F		    { compr align1 };
+mac.sat(16) src_sample_r<1>F	Crn<8,8,1>F	1.793F	    { compr align1 };
 
-mov (8)    acc0<1>F		Yn_23<8,8,1>F		    { compr align1 };
-mac.sat(8) src_sample_r_23<1>F	Crn_23<8,8,1>F	1.596F	    { compr align1 };
     /*
      * G = Yn -
      *     Crn * 255/112 * (1.0 - Kr) * Kr / Kg -
      *     Cbn * 255/112 * (1.0 - Kb) * Kb / Kg
      */
-mov (8)    acc0<1>F		Yn_01<8,8,1>F		    { compr align1 };
-mac (8)    acc0<1>F		Crn_01<8,8,1>F    	-0.813F	    { compr align1 };
-mac.sat(8) src_sample_g_01<1>F	Cbn_01<8,8,1>F    	-0.392F	    { compr align1 };
+mov (16)    acc0<1>F		Yn<8,8,1>F		    { compr align1 };
+mac (16)    acc0<1>F		Crn<8,8,1>F    	-0.533F	    { compr align1 };
+mac.sat(16) src_sample_g<1>F	Cbn<8,8,1>F    	-0.213F	    { compr align1 };
 
-mov (8)    acc0<1>F		Yn_23<8,8,1>F	    { compr align1 };
-mac (8)    acc0<1>F		Crn_23<8,8,1>F    	-0.813F	    { compr align1 };
-mac.sat(16) src_sample_g_23<1>F	Cbn_23<8,8,1>F    	-0.392F	    { compr align1 };
     /*
      * B = Yn +
      *     Cbn * 255/112 * (1.0 - Kb)
      */
-mov (8)    acc0<1>F	        Yn_01<8,8,1>F		    { compr align1 };
-mac.sat(8) src_sample_b_01<1>F	Cbn_01<8,8,1>F     2.017F	    { compr align1 };
+mov (16)    acc0<1>F	        Yn<8,8,1>F		    { compr align1 };
+mac.sat(16) src_sample_b<1>F	Cbn<8,8,1>F     2.112F	    { compr align1 };
 
-mov (8)    acc0<1>F	        Yn_23<8,8,1>F		    { compr align1 };
-mac.sat(8) src_sample_b_23<1>F	Cbn_23<8,8,1>F     2.017F	    { compr align1 };
     /*
      * A = 1.0
      */

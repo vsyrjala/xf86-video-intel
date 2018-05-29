@@ -16,6 +16,7 @@ INTEL_G4A =				\
 	exa_wm_ca_srcalpha.g4a		\
 	exa_wm_write.g4a 		\
 	exa_wm_yuv_rgb_bt601.g4a	\
+	exa_wm_yuv_rgb_bt709.g4a	\
 	exa_wm_xy.g4a			\
 	$(NULL)
 
@@ -46,6 +47,7 @@ INTEL_G4B = 				\
 	exa_wm_ca_srcalpha.g4b		\
 	exa_wm_write.g4b 		\
 	exa_wm_yuv_rgb_bt601.g4b	\
+	exa_wm_yuv_rgb_bt709.g4b	\
 	exa_wm_xy.g4b			\
 	$(NULL)
 
@@ -68,6 +70,7 @@ INTEL_G4B_GEN5 = 				\
 	exa_wm_ca_srcalpha.g4b.gen5		\
 	exa_wm_write.g4b.gen5 			\
 	exa_wm_yuv_rgb_bt601.g4b.gen5		\
+	exa_wm_yuv_rgb_bt709.g4b.gen5		\
 	exa_wm_xy.g4b.gen5			\
 	$(NULL)
 
@@ -89,6 +92,7 @@ INTEL_G5A =				\
 	exa_wm_ca_srcalpha.g5a		\
 	exa_wm_write.g5a 		\
 	exa_wm_yuv_rgb_bt601.g5a	\
+	exa_wm_yuv_rgb_bt709.g5a	\
 	exa_wm_xy.g5a			\
 	$(NULL)
 
@@ -110,6 +114,7 @@ INTEL_G5B = 				\
 	exa_wm_ca_srcalpha.g5b		\
 	exa_wm_write.g5b 		\
 	exa_wm_yuv_rgb_bt601.g5b	\
+	exa_wm_yuv_rgb_bt709.g5b	\
 	exa_wm_xy.g5b			\
 	$(NULL)
 
@@ -134,6 +139,7 @@ INTEL_G6A =				\
 	exa_wm_noca.g6a			\
 	exa_wm_write.g6a 		\
 	exa_wm_yuv_rgb_bt601.g6a	\
+	exa_wm_yuv_rgb_bt709.g6a	\
 	$(NULL)
 
 INTEL_G6B =				\
@@ -152,6 +158,7 @@ INTEL_G6B =				\
 	exa_wm_noca.g6b			\
 	exa_wm_write.g6b 		\
 	exa_wm_yuv_rgb_bt601.g6b	\
+	exa_wm_yuv_rgb_bt709.g6b	\
 	$(NULL)
 
 INTEL_G7A =				\
@@ -167,6 +174,7 @@ INTEL_G7A =				\
 	exa_wm_src_sample_planar.g7a 	\
 	exa_wm_write.g7a 		\
 	exa_wm_yuv_rgb_bt601.g7a	\
+	exa_wm_yuv_rgb_bt709.g7a	\
 	$(NULL)
 
 INTEL_G7B =				\
@@ -182,6 +190,7 @@ INTEL_G7B =				\
 	exa_wm_src_sample_planar.g7b 	\
 	exa_wm_write.g7b 		\
 	exa_wm_yuv_rgb_bt601.g7b	\
+	exa_wm_yuv_rgb_bt709.g7b	\
 	$(NULL)
 
 INTEL_G8A =				\
@@ -191,6 +200,7 @@ INTEL_G8A =				\
 	exa_wm_src_sample_planar.g8a 	\
 	exa_wm_write.g8a 		\
 	exa_wm_yuv_rgb_bt601.g8a	\
+	exa_wm_yuv_rgb_bt709.g8a	\
 	$(NULL)
 
 INTEL_G8B =				\
@@ -200,6 +210,7 @@ INTEL_G8B =				\
 	exa_wm_src_sample_planar.g8b 	\
 	exa_wm_write.g8b 		\
 	exa_wm_yuv_rgb_bt601.g8b	\
+	exa_wm_yuv_rgb_bt709.g8b	\
 	$(NULL)
 
 EXTRA_DIST = 		\
