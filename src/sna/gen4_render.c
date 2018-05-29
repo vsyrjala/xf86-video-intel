@@ -103,7 +103,7 @@ static const uint32_t ps_kernel_packed_static[][4] = {
 #include "exa_wm_xy.g4b"
 #include "exa_wm_src_affine.g4b"
 #include "exa_wm_src_sample_argb.g4b"
-#include "exa_wm_yuv_rgb.g4b"
+#include "exa_wm_yuv_rgb_bt601.g4b"
 #include "exa_wm_write.g4b"
 };
 
@@ -111,7 +111,7 @@ static const uint32_t ps_kernel_planar_static[][4] = {
 #include "exa_wm_xy.g4b"
 #include "exa_wm_src_affine.g4b"
 #include "exa_wm_src_sample_planar.g4b"
-#include "exa_wm_yuv_rgb.g4b"
+#include "exa_wm_yuv_rgb_bt601.g4b"
 #include "exa_wm_write.g4b"
 };
 
@@ -119,7 +119,7 @@ static const uint32_t ps_kernel_nv12_static[][4] = {
 #include "exa_wm_xy.g4b"
 #include "exa_wm_src_affine.g4b"
 #include "exa_wm_src_sample_nv12.g4b"
-#include "exa_wm_yuv_rgb.g4b"
+#include "exa_wm_yuv_rgb_bt601.g4b"
 #include "exa_wm_write.g4b"
 };
 

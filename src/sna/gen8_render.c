@@ -96,21 +96,21 @@
 static const uint32_t ps_kernel_packed[][4] = {
 #include "exa_wm_src_affine.g8b"
 #include "exa_wm_src_sample_argb.g8b"
-#include "exa_wm_yuv_rgb.g8b"
+#include "exa_wm_yuv_rgb_bt601.g8b"
 #include "exa_wm_write.g8b"
 };
 
 static const uint32_t ps_kernel_planar[][4] = {
 #include "exa_wm_src_affine.g8b"
 #include "exa_wm_src_sample_planar.g8b"
-#include "exa_wm_yuv_rgb.g8b"
+#include "exa_wm_yuv_rgb_bt601.g8b"
 #include "exa_wm_write.g8b"
 };
 
 static const uint32_t ps_kernel_nv12[][4] = {
 #include "exa_wm_src_affine.g8b"
 #include "exa_wm_src_sample_nv12.g8b"
-#include "exa_wm_yuv_rgb.g8b"
+#include "exa_wm_yuv_rgb_bt601.g8b"
 #include "exa_wm_write.g8b"
 };
 

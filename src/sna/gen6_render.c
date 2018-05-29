@@ -104,21 +104,21 @@ static const struct gt_info gt2_info = {
 static const uint32_t ps_kernel_packed[][4] = {
 #include "exa_wm_src_affine.g6b"
 #include "exa_wm_src_sample_argb.g6b"
-#include "exa_wm_yuv_rgb.g6b"
+#include "exa_wm_yuv_rgb_bt601.g6b"
 #include "exa_wm_write.g6b"
 };
 
 static const uint32_t ps_kernel_planar[][4] = {
 #include "exa_wm_src_affine.g6b"
 #include "exa_wm_src_sample_planar.g6b"
-#include "exa_wm_yuv_rgb.g6b"
+#include "exa_wm_yuv_rgb_bt601.g6b"
 #include "exa_wm_write.g6b"
 };
 
 static const uint32_t ps_kernel_nv12[][4] = {
 #include "exa_wm_src_affine.g6b"
 #include "exa_wm_src_sample_nv12.g6b"
-#include "exa_wm_yuv_rgb.g6b"
+#include "exa_wm_yuv_rgb_bt601.g6b"
 #include "exa_wm_write.g6b"
 };
 
