@@ -3475,7 +3475,7 @@ static void add_sprite_plane(struct sna_crtc *crtc,
 		return;
 
 	memcpy(sprite, details, sizeof(*sprite));
-	list_add(&sprite->link, &crtc->sprites);
+	list_add_tail(&sprite->link, &crtc->sprites);
 }
 
 static void
