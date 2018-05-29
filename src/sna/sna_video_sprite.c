@@ -754,7 +754,7 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 	adaptor->pAttributes = (XvAttributeRec *)attribs;
 	adaptor->pImages = (XvImageRec *)images;
 	adaptor->nImages = 3;
-	if (sna->kgem.gen == 071)
+	if (sna_has_sprite_format(sna, DRM_FORMAT_RGB565))
 		adaptor->nImages = 4;
 
 #if XORG_XV_VERSION < 2
