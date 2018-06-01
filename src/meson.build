@@ -92,6 +92,7 @@ intel_drv_sources = [
 
 intel_drv_deps = [
   dependency('pciaccess', version : '>= 0.10', required : true),
+  libdrm,
   xorg,
 ]
 
