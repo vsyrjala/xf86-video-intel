@@ -49,7 +49,7 @@
 #define DRM_FORMAT_NV12         fourcc_code('N', 'V', '1', '2') /* 2x2 subsampled Cr:Cb plane */
 
 #define has_hw_scaling(sna, video) ((sna)->kgem.gen < 071 || \
-				    ((sna)->kgem.gen >= 0110 && (video)->AlwaysOnTop))
+				    (sna)->kgem.gen >= 0110)
 
 
 #define LOCAL_IOCTL_MODE_SETPLANE	DRM_IOWR(0xB7, struct local_mode_set_plane)
