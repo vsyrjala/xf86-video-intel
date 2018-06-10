@@ -98,6 +98,20 @@ struct kgem_bo *sna_static_stream_fini(struct sna *sna,
 	return bo;
 }
 
+static void print_kernel(const char *name, const uint32_t *p, int len)
+{
+	ErrorF("static const uint32_t %s[][4] = {\n", name);
+	for (int i = 0; i  < len; i++) {
+		if (p[0] == 0 && p[1] == 0 &&
+		    p[2] == 0 && p[3] == 0)
+			break;
+		ErrorF("\t{ 0x%08x, 0x%08x, 0x%08x, 0x%08x }\n",
+		       p[0], p[1], p[2], p[3]);
+		p += 4;
+	}
+	ErrorF("\n");
+}
+
 unsigned
 sna_static_stream_compile_sf(struct sna *sna,
 			     struct sna_static_stream *stream,
@@ -113,6 +127,8 @@ sna_static_stream_compile_sf(struct sna *sna,
 		stream->used -= 64*sizeof(uint32_t);
 		return 0;
 	}
+
+	print_kernel("sf", p.store, p.nr_insn);
 
 	assert(p.nr_insn*sizeof(struct brw_instruction) <= 64*sizeof(uint32_t));
 
@@ -136,6 +152,8 @@ sna_static_stream_compile_wm(struct sna *sna,
 		stream->used -= 256*sizeof(uint32_t);
 		return 0;
 	}
+
+	print_kernel("wm", p.store, p.nr_insn);
 
 	assert(p.nr_insn*sizeof(struct brw_instruction) <= 256*sizeof(uint32_t));
 
