@@ -1155,7 +1155,7 @@ sna_screen_init(SCREEN_INIT_ARGS_DECL)
 	if (!miInitVisuals(&visuals, &depths, &nvisuals, &ndepths, &rootdepth,
 			   &defaultVisual,
 			   ((unsigned long)1 << (scrn->bitsPerPixel - 1)),
-			   8, -1))
+			   scrn->rgbBits, -1))
 		return FALSE;
 
 	if (!miScreenInit(screen, NULL,
@@ -1226,8 +1226,11 @@ sna_screen_init(SCREEN_INIT_ARGS_DECL)
 	if (!miCreateDefColormap(screen))
 		return FALSE;
 
-	if (sna->mode.num_real_crtc &&
-	    !xf86HandleColormaps(screen, 256, 8, sna_load_palette, NULL,
+	/* X-Server < 1.20 mishandles > 256 slots / > 8 bpc color maps. */
+	if (sna->mode.num_real_crtc && (scrn->rgbBits <= 8 ||
+	    XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,20,0,0,0)) &&
+	    !xf86HandleColormaps(screen, 1 << scrn->rgbBits, scrn->rgbBits,
+				 sna_load_palette, NULL,
 				 CMAP_RELOAD_ON_MODE_SWITCH |
 				 CMAP_PALETTED_TRUECOLOR))
 		return FALSE;
