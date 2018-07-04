@@ -89,51 +89,51 @@
 #define PS_KERNEL_NUM_GRF   32
 #define PS_MAX_THREADS	    72
 
-static const uint32_t ps_kernel_packed_bt601_static[][4] = {
+static const uint32_t ps_kernel_packed_bt601_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_argb.g5b"
-#include "exa_wm_yuv_rgb_bt601.g5b"
+#include "exa_wm_yuv_rgb_bt601_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_planar_bt601_static[][4] = {
+static const uint32_t ps_kernel_planar_bt601_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_planar.g5b"
-#include "exa_wm_yuv_rgb_bt601.g5b"
+#include "exa_wm_yuv_rgb_bt601_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_nv12_bt601_static[][4] = {
+static const uint32_t ps_kernel_nv12_bt601_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_nv12.g5b"
-#include "exa_wm_yuv_rgb_bt601.g5b"
+#include "exa_wm_yuv_rgb_bt601_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_packed_bt709_static[][4] = {
+static const uint32_t ps_kernel_packed_bt709_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_argb.g5b"
-#include "exa_wm_yuv_rgb_bt709.g5b"
+#include "exa_wm_yuv_rgb_bt709_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_planar_bt709_static[][4] = {
+static const uint32_t ps_kernel_planar_bt709_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_planar.g5b"
-#include "exa_wm_yuv_rgb_bt709.g5b"
+#include "exa_wm_yuv_rgb_bt709_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
-static const uint32_t ps_kernel_nv12_bt709_static[][4] = {
+static const uint32_t ps_kernel_nv12_bt709_limited_static[][4] = {
 #include "exa_wm_xy.g5b"
 #include "exa_wm_src_affine.g5b"
 #include "exa_wm_src_sample_nv12.g5b"
-#include "exa_wm_yuv_rgb_bt709.g5b"
+#include "exa_wm_yuv_rgb_bt709_limited.g5b"
 #include "exa_wm_write.g5b"
 };
 
@@ -161,13 +161,13 @@ static const struct wm_kernel_info {
 	NOKERNEL(WM_KERNEL_OPACITY, brw_wm_kernel__affine_opacity, true),
 	NOKERNEL(WM_KERNEL_OPACITY_P, brw_wm_kernel__projective_opacity, true),
 
-	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT601, ps_kernel_planar_bt601_static, false),
-	KERNEL(WM_KERNEL_VIDEO_NV12_BT601, ps_kernel_nv12_bt601_static, false),
-	KERNEL(WM_KERNEL_VIDEO_PACKED_BT601, ps_kernel_packed_bt601_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT601_LIMITED, ps_kernel_planar_bt601_limited_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT601_LIMITED, ps_kernel_nv12_bt601_limited_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT601_LIMITED, ps_kernel_packed_bt601_limited_static, false),
 
-	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT709, ps_kernel_planar_bt709_static, false),
-	KERNEL(WM_KERNEL_VIDEO_NV12_BT709, ps_kernel_nv12_bt709_static, false),
-	KERNEL(WM_KERNEL_VIDEO_PACKED_BT709, ps_kernel_packed_bt709_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT709_LIMITED, ps_kernel_planar_bt709_limited_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT709_LIMITED, ps_kernel_nv12_bt709_limited_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT709_LIMITED, ps_kernel_packed_bt709_limited_static, false),
 };
 #undef KERNEL
 
@@ -1390,18 +1390,18 @@ static unsigned select_video_kernel(const struct sna_video *video,
 	case FOURCC_I420:
 	case FOURCC_XVMC:
 		return video->colorspace ?
-			WM_KERNEL_VIDEO_PLANAR_BT709 :
-			WM_KERNEL_VIDEO_PLANAR_BT601;
+			WM_KERNEL_VIDEO_PLANAR_BT709_LIMITED :
+			WM_KERNEL_VIDEO_PLANAR_BT601_LIMITED;
 
 	case FOURCC_NV12:
 		return video->colorspace ?
-			WM_KERNEL_VIDEO_NV12_BT709 :
-			WM_KERNEL_VIDEO_NV12_BT601;
+			WM_KERNEL_VIDEO_NV12_BT709_LIMITED :
+			WM_KERNEL_VIDEO_NV12_BT601_LIMITED;
 
 	default:
 		return video->colorspace ?
-			WM_KERNEL_VIDEO_PACKED_BT709 :
-			WM_KERNEL_VIDEO_PACKED_BT601;
+			WM_KERNEL_VIDEO_PACKED_BT709_LIMITED :
+			WM_KERNEL_VIDEO_PACKED_BT601_LIMITED;
 	}
 }
 
