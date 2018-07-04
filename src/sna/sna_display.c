@@ -226,6 +226,10 @@ struct sna_crtc {
 			uint32_t prop;
 			uint64_t values[2];
 		} color_encoding;
+		struct {
+			uint32_t prop;
+			uint64_t values[2];
+		} color_range;
 		struct list link;
 	} primary;
 	struct list sprites;
@@ -3374,8 +3378,55 @@ static void parse_color_encoding_prop(struct sna *sna, struct plane *p,
 		p->color_encoding.prop = prop->prop_id;
 }
 
+inline static bool prop_is_color_range(const struct drm_mode_get_property *prop)
+{
+	return prop_has_type_and_name(prop, 3, "COLOR_RANGE");
+}
+
+static void parse_color_range_prop(struct sna *sna, struct plane *p,
+				   struct drm_mode_get_property *prop,
+				   uint64_t value)
+{
+	struct drm_mode_property_enum *enums;
+	unsigned int supported = 0;
+	int j;
+
+	DBG(("%s: found color range property .id=%d, value=%ld, num_enums=%d\n",
+	     __FUNCTION__, prop->prop_id, (long)value, prop->count_enum_blobs));
+
+	enums = malloc(prop->count_enum_blobs * sizeof(struct drm_mode_property_enum));
+	if (!enums)
+		return;
+
+	prop->count_values = 0;
+	prop->enum_blob_ptr = (uintptr_t)enums;
+
+	if (drmIoctl(sna->kgem.fd, DRM_IOCTL_MODE_GETPROPERTY, prop)) {
+		free(enums);
+		return;
+	}
+
+	VG(VALGRIND_MAKE_MEM_DEFINED(enums, sizeof(*enums)*prop->count_enum_blobs));
+	for (j = 0; j < prop->count_enum_blobs; j++) {
+		if (!strcmp(enums[j].name, "YCbCr limited range")) {
+			p->color_range.values[0] = enums[j].value;
+			supported |= 1 << 0;
+		} else if (!strcmp(enums[j].name, "YCbCr full range")) {
+			p->color_range.values[1] = enums[j].value;
+			supported |= 1 << 1;
+		}
+	}
+
+	free(enums);
+
+	if (supported == 3)
+		p->color_range.prop = prop->prop_id;
+}
+
 void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc,
-				    unsigned idx, int colorspace)
+				    unsigned idx,
+				    int colorspace,
+				    int color_range)
 {
 	struct plane *p;
 
@@ -3384,13 +3435,16 @@ void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc,
 
 	p = lookup_sprite(to_sna_crtc(crtc), idx);
 
-	if (!p->color_encoding.prop)
-		return;
-
-	drmModeObjectSetProperty(to_sna(crtc->scrn)->kgem.fd,
-				 p->id, DRM_MODE_OBJECT_PLANE,
-				 p->color_encoding.prop,
-				 p->color_encoding.values[colorspace]);
+	if (p->color_encoding.prop)
+		drmModeObjectSetProperty(to_sna(crtc->scrn)->kgem.fd,
+					 p->id, DRM_MODE_OBJECT_PLANE,
+					 p->color_encoding.prop,
+					 p->color_encoding.values[colorspace]);
+	if (p->color_range.prop)
+		drmModeObjectSetProperty(to_sna(crtc->scrn)->kgem.fd,
+					 p->id, DRM_MODE_OBJECT_PLANE,
+					 p->color_range.prop,
+					 p->color_range.values[color_range]);
 }
 
 static int plane_details(struct sna *sna, struct plane *p)
@@ -3452,6 +3506,8 @@ static int plane_details(struct sna *sna, struct plane *p)
 			parse_rotation_prop(sna, p, &prop, values[i]);
 		} else if (prop_is_color_encoding(&prop)) {
 			parse_color_encoding_prop(sna, p, &prop, values[i]);
+		} else if (prop_is_color_range(&prop)) {
+			parse_color_range_prop(sna, p, &prop, values[i]);
 		}
 	}
 
