@@ -101,6 +101,7 @@ struct sna_video {
 	bool has_color_key;
 
 	unsigned colorspace;
+	unsigned color_range;
 	unsigned colorspace_changed;
 
 	/** YUV data buffers */

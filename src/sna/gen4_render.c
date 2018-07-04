@@ -147,6 +147,54 @@ static const uint32_t ps_kernel_nv12_bt709_limited_static[][4] = {
 #include "exa_wm_write.g4b"
 };
 
+static const uint32_t ps_kernel_packed_bt601_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_argb.g4b"
+#include "exa_wm_yuv_rgb_bt601_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
+static const uint32_t ps_kernel_planar_bt601_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_planar.g4b"
+#include "exa_wm_yuv_rgb_bt601_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
+static const uint32_t ps_kernel_nv12_bt601_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_nv12.g4b"
+#include "exa_wm_yuv_rgb_bt601_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
+static const uint32_t ps_kernel_packed_bt709_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_argb.g4b"
+#include "exa_wm_yuv_rgb_bt709_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
+static const uint32_t ps_kernel_planar_bt709_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_planar.g4b"
+#include "exa_wm_yuv_rgb_bt709_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
+static const uint32_t ps_kernel_nv12_bt709_full_static[][4] = {
+#include "exa_wm_xy.g4b"
+#include "exa_wm_src_affine.g4b"
+#include "exa_wm_src_sample_nv12.g4b"
+#include "exa_wm_yuv_rgb_bt709_full.g4b"
+#include "exa_wm_write.g4b"
+};
+
 #define NOKERNEL(kernel_enum, func, masked) \
     [kernel_enum] = {func, 0, masked}
 #define KERNEL(kernel_enum, kernel, masked) \
@@ -178,6 +226,14 @@ static const struct wm_kernel_info {
 	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT709_LIMITED, ps_kernel_planar_bt709_limited_static, false),
 	KERNEL(WM_KERNEL_VIDEO_NV12_BT709_LIMITED, ps_kernel_nv12_bt709_limited_static, false),
 	KERNEL(WM_KERNEL_VIDEO_PACKED_BT709_LIMITED, ps_kernel_packed_bt709_limited_static, false),
+
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT601_FULL, ps_kernel_planar_bt601_full_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT601_FULL, ps_kernel_nv12_bt601_full_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT601_FULL, ps_kernel_packed_bt601_full_static, false),
+
+	KERNEL(WM_KERNEL_VIDEO_PLANAR_BT709_FULL, ps_kernel_planar_bt709_full_static, false),
+	KERNEL(WM_KERNEL_VIDEO_NV12_BT709_FULL, ps_kernel_nv12_bt709_full_static, false),
+	KERNEL(WM_KERNEL_VIDEO_PACKED_BT709_FULL, ps_kernel_packed_bt709_full_static, false),
 };
 #undef KERNEL
 
@@ -1439,19 +1495,34 @@ static unsigned select_video_kernel(const struct sna_video *video,
 	case FOURCC_YV12:
 	case FOURCC_I420:
 	case FOURCC_XVMC:
-		return video->colorspace ?
-			WM_KERNEL_VIDEO_PLANAR_BT709_LIMITED :
-			WM_KERNEL_VIDEO_PLANAR_BT601_LIMITED;
+		if (video->color_range)
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_PLANAR_BT709_FULL :
+				WM_KERNEL_VIDEO_PLANAR_BT601_FULL;
+		else
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_PLANAR_BT709_LIMITED :
+				WM_KERNEL_VIDEO_PLANAR_BT601_LIMITED;
 
 	case FOURCC_NV12:
-		return video->colorspace ?
-			WM_KERNEL_VIDEO_NV12_BT709_LIMITED :
-			WM_KERNEL_VIDEO_NV12_BT601_LIMITED;
+		if (video->color_range)
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_NV12_BT709_FULL :
+				WM_KERNEL_VIDEO_NV12_BT601_FULL;
+		else
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_NV12_BT709_LIMITED :
+				WM_KERNEL_VIDEO_NV12_BT601_LIMITED;
 
 	default:
-		return video->colorspace ?
-			WM_KERNEL_VIDEO_PACKED_BT709_LIMITED :
-			WM_KERNEL_VIDEO_PACKED_BT601_LIMITED;
+		if (video->color_range)
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_PACKED_BT709_FULL :
+				WM_KERNEL_VIDEO_PACKED_BT601_FULL;
+		else
+			return video->colorspace ?
+				WM_KERNEL_VIDEO_PACKED_BT709_LIMITED :
+				WM_KERNEL_VIDEO_PACKED_BT601_LIMITED;
 	}
 }
 
