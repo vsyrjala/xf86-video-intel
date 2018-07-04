@@ -321,19 +321,18 @@ static const struct blendinfo {
 
 #define COPY_SAMPLER 0
 #define COPY_VERTEX VERTEX_2s2s
-#define COPY_FLAGS(a) GEN7_SET_FLAGS(COPY_SAMPLER, (a) == GXcopy ? NO_BLEND : CLEAR, GEN7_WM_KERNEL_NOMASK, COPY_VERTEX)
+#define COPY_FLAGS(a) GEN7_SET_FLAGS(COPY_SAMPLER, (a) == GXcopy ? NO_BLEND : CLEAR, COPY_VERTEX)
 
 #define FILL_SAMPLER (2 * sizeof(struct gen7_sampler_state))
 #define FILL_VERTEX VERTEX_2s2s
-#define FILL_FLAGS(op, format) GEN7_SET_FLAGS(FILL_SAMPLER, gen7_get_blend((op), false, (format)), GEN7_WM_KERNEL_NOMASK, FILL_VERTEX)
-#define FILL_FLAGS_NOBLEND GEN7_SET_FLAGS(FILL_SAMPLER, NO_BLEND, GEN7_WM_KERNEL_NOMASK, FILL_VERTEX)
+#define FILL_FLAGS(op, format) GEN7_SET_FLAGS(FILL_SAMPLER, gen7_get_blend((op), false, (format)), FILL_VERTEX)
+#define FILL_FLAGS_NOBLEND GEN7_SET_FLAGS(FILL_SAMPLER, NO_BLEND, FILL_VERTEX)
 
 #define GEN7_SAMPLER(f) (((f) >> 16) & 0xfff0)
 #define GEN7_BLEND(f) (((f) >> 0) & 0x7ff0)
 #define GEN7_READS_DST(f) (((f) >> 15) & 1)
-#define GEN7_KERNEL(f) (((f) >> 16) & 0xf)
 #define GEN7_VERTEX(f) (((f) >> 0) & 0xf)
-#define GEN7_SET_FLAGS(S, B, K, V)  (((S) | (K)) << 16 | ((B) | (V)))
+#define GEN7_SET_FLAGS(S, B, V)  ((S) << 16 | ((B) | (V)))
 
 #define OUT_BATCH(v) batch_emit(sna, v)
 #define OUT_VERTEX(x,y) vertex_emit_2s(sna, x,y)
@@ -1188,7 +1187,7 @@ gen7_emit_state(struct sna *sna,
 	gen7_emit_cc(sna, GEN7_BLEND(op->u.gen7.flags));
 	gen7_emit_sampler(sna, GEN7_SAMPLER(op->u.gen7.flags));
 	gen7_emit_sf(sna, GEN7_VERTEX(op->u.gen7.flags) >> 2);
-	gen7_emit_wm(sna, GEN7_KERNEL(op->u.gen7.flags));
+	gen7_emit_wm(sna, op->u.gen7.wm_kernel);
 	gen7_emit_vertex_elements(sna, op);
 	gen7_emit_binding_table(sna, wm_binding_table);
 
@@ -1453,7 +1452,7 @@ static int gen7_get_rectangles__flush(struct sna *sna,
 		if (gen7_magic_ca_pass(sna, op)) {
 			gen7_emit_pipe_stall(sna);
 			gen7_emit_cc(sna, GEN7_BLEND(op->u.gen7.flags));
-			gen7_emit_wm(sna, GEN7_KERNEL(op->u.gen7.flags));
+			gen7_emit_wm(sna, op->u.gen7.wm_kernel);
 		}
 	}
 
@@ -1949,8 +1948,8 @@ gen7_render_video(struct sna *sna,
 		GEN7_SET_FLAGS(SAMPLER_OFFSET(filter, SAMPLER_EXTEND_PAD,
 					      SAMPLER_FILTER_NEAREST, SAMPLER_EXTEND_NONE),
 			       NO_BLEND,
-			       select_video_kernel(video, frame),
 			       2);
+	tmp.u.gen7.wm_kernel = select_video_kernel(video, frame);
 	tmp.priv = frame;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
@@ -2647,11 +2646,11 @@ gen7_render_composite(struct sna *sna,
 			       gen7_get_blend(tmp->op,
 					      tmp->has_component_alpha,
 					      tmp->dst.format),
-			       gen7_choose_composite_kernel(tmp->op,
-							    tmp->mask.bo != NULL,
-							    tmp->has_component_alpha,
-							    tmp->is_affine),
 			       gen4_choose_composite_emitter(sna, tmp));
+	tmp->u.gen7.wm_kernel = gen7_choose_composite_kernel(tmp->op,
+							     tmp->mask.bo != NULL,
+							     tmp->has_component_alpha,
+							     tmp->is_affine);
 
 	tmp->blt   = gen7_render_composite_blt;
 	tmp->box   = gen7_render_composite_box;
@@ -2879,8 +2878,9 @@ gen7_render_composite_spans(struct sna *sna,
 					      SAMPLER_FILTER_NEAREST,
 					      SAMPLER_EXTEND_PAD),
 			       gen7_get_blend(tmp->base.op, false, tmp->base.dst.format),
-			       GEN7_WM_KERNEL_OPACITY | !tmp->base.is_affine,
 			       gen4_choose_spans_emitter(sna, tmp));
+	tmp->base.u.gen7.wm_kernel =
+		GEN7_WM_KERNEL_OPACITY | !tmp->base.is_affine;
 
 	tmp->box   = gen7_render_composite_spans_box;
 	tmp->boxes = gen7_render_composite_spans_boxes;
@@ -3141,6 +3141,7 @@ fallback_blt:
 	tmp.need_magic_ca_pass = 0;
 
 	tmp.u.gen7.flags = COPY_FLAGS(alu);
+	tmp.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
 	if (!kgem_check_bo(&sna->kgem, tmp.dst.bo, tmp.src.bo, NULL)) {
@@ -3308,6 +3309,7 @@ fallback:
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen7.flags = COPY_FLAGS(alu);
+	op->base.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, src_bo, NULL)) {
@@ -3461,6 +3463,7 @@ gen7_render_fill_boxes(struct sna *sna,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen7.flags = FILL_FLAGS(op, format);
+	tmp.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, NULL)) {
@@ -3642,6 +3645,7 @@ gen7_render_fill(struct sna *sna, uint8_t alu,
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen7.flags = FILL_FLAGS_NOBLEND;
+	op->base.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, NULL)) {
@@ -3726,6 +3730,7 @@ gen7_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen7.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, bo);
 	if (!kgem_check_bo(&sna->kgem, bo, NULL)) {
@@ -3811,6 +3816,7 @@ gen7_render_clear(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo)
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen7.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen7.wm_kernel = GEN7_WM_KERNEL_NOMASK;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, bo);
 	if (!kgem_check_bo(&sna->kgem, bo, NULL)) {
@@ -3957,6 +3963,9 @@ static bool gen7_render_setup(struct sna *sna, int devid)
 		}
 		assert(state->wm_kernel[m][0]|state->wm_kernel[m][1]|state->wm_kernel[m][2]);
 	}
+
+	COMPILE_TIME_ASSERT(GEN7_WM_KERNEL_COUNT <=
+			    1 << (sizeof(((struct sna_composite_op *)NULL)->u.gen7.wm_kernel) * 8));
 
 	COMPILE_TIME_ASSERT(SAMPLER_OFFSET(FILTER_COUNT, EXTEND_COUNT, FILTER_COUNT, EXTEND_COUNT) <= 0xfff);
 	ss = sna_static_stream_map(&general,

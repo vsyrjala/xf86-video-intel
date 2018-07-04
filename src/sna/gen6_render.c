@@ -224,18 +224,17 @@ static const struct blendinfo {
 
 #define COPY_SAMPLER 0
 #define COPY_VERTEX VERTEX_2s2s
-#define COPY_FLAGS(a) GEN6_SET_FLAGS(COPY_SAMPLER, (a) == GXcopy ? NO_BLEND : CLEAR, GEN6_WM_KERNEL_NOMASK, COPY_VERTEX)
+#define COPY_FLAGS(a) GEN6_SET_FLAGS(COPY_SAMPLER, (a) == GXcopy ? NO_BLEND : CLEAR, COPY_VERTEX)
 
 #define FILL_SAMPLER (2 * sizeof(struct gen6_sampler_state))
 #define FILL_VERTEX VERTEX_2s2s
-#define FILL_FLAGS(op, format) GEN6_SET_FLAGS(FILL_SAMPLER, gen6_get_blend((op), false, (format)), GEN6_WM_KERNEL_NOMASK, FILL_VERTEX)
-#define FILL_FLAGS_NOBLEND GEN6_SET_FLAGS(FILL_SAMPLER, NO_BLEND, GEN6_WM_KERNEL_NOMASK, FILL_VERTEX)
+#define FILL_FLAGS(op, format) GEN6_SET_FLAGS(FILL_SAMPLER, gen6_get_blend((op), false, (format)), FILL_VERTEX)
+#define FILL_FLAGS_NOBLEND GEN6_SET_FLAGS(FILL_SAMPLER, NO_BLEND, FILL_VERTEX)
 
 #define GEN6_SAMPLER(f) (((f) >> 16) & 0xfff0)
 #define GEN6_BLEND(f) (((f) >> 0) & 0xfff0)
-#define GEN6_KERNEL(f) (((f) >> 16) & 0xf)
 #define GEN6_VERTEX(f) (((f) >> 0) & 0xf)
-#define GEN6_SET_FLAGS(S, B, K, V)  (((S) | (K)) << 16 | ((B) | (V)))
+#define GEN6_SET_FLAGS(S, B, V)  ((S) << 16 | ((B) | (V)))
 
 #define OUT_BATCH(v) batch_emit(sna, v)
 #define OUT_VERTEX(x,y) vertex_emit_2s(sna, x,y)
@@ -967,7 +966,7 @@ gen6_emit_state(struct sna *sna,
 	gen6_emit_cc(sna, GEN6_BLEND(op->u.gen6.flags));
 	gen6_emit_sampler(sna, GEN6_SAMPLER(op->u.gen6.flags));
 	gen6_emit_sf(sna, GEN6_VERTEX(op->u.gen6.flags) >> 2);
-	gen6_emit_wm(sna, GEN6_KERNEL(op->u.gen6.flags), GEN6_VERTEX(op->u.gen6.flags) >> 2);
+	gen6_emit_wm(sna, op->u.gen6.wm_kernel, GEN6_VERTEX(op->u.gen6.flags) >> 2);
 	gen6_emit_vertex_elements(sna, op);
 	gen6_emit_binding_table(sna, wm_binding_table);
 
@@ -1252,7 +1251,7 @@ static int gen6_get_rectangles__flush(struct sna *sna,
 			gen6_emit_pipe_stall(sna);
 			gen6_emit_cc(sna, GEN6_BLEND(op->u.gen6.flags));
 			gen6_emit_wm(sna,
-				     GEN6_KERNEL(op->u.gen6.flags),
+				     op->u.gen6.wm_kernel,
 				     GEN6_VERTEX(op->u.gen6.flags) >> 2);
 		}
 	}
@@ -1732,8 +1731,8 @@ gen6_render_video(struct sna *sna,
 		GEN6_SET_FLAGS(SAMPLER_OFFSET(filter, SAMPLER_EXTEND_PAD,
 					       SAMPLER_FILTER_NEAREST, SAMPLER_EXTEND_NONE),
 			       NO_BLEND,
-			       select_video_kernel(video, frame),
 			       2);
+	tmp.u.gen6.wm_kernel = select_video_kernel(video, frame);
 	tmp.priv = frame;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
@@ -2417,11 +2416,11 @@ gen6_render_composite(struct sna *sna,
 			       gen6_get_blend(tmp->op,
 					      tmp->has_component_alpha,
 					      tmp->dst.format),
-			       gen6_choose_composite_kernel(tmp->op,
-							    tmp->mask.bo != NULL,
-							    tmp->has_component_alpha,
-							    tmp->is_affine),
 			       gen4_choose_composite_emitter(sna, tmp));
+	tmp->u.gen6.wm_kernel = gen6_choose_composite_kernel(tmp->op,
+							     tmp->mask.bo != NULL,
+							     tmp->has_component_alpha,
+							     tmp->is_affine);
 
 	tmp->blt   = gen6_render_composite_blt;
 	tmp->box   = gen6_render_composite_box;
@@ -2669,8 +2668,9 @@ gen6_render_composite_spans(struct sna *sna,
 					      SAMPLER_FILTER_NEAREST,
 					      SAMPLER_EXTEND_PAD),
 			       gen6_get_blend(tmp->base.op, false, tmp->base.dst.format),
-			       GEN6_WM_KERNEL_OPACITY | !tmp->base.is_affine,
 			       gen4_choose_spans_emitter(sna, tmp));
+	tmp->base.u.gen6.wm_kernel =
+		GEN6_WM_KERNEL_OPACITY | !tmp->base.is_affine;
 
 	tmp->box   = gen6_render_composite_spans_box;
 	tmp->boxes = gen6_render_composite_spans_boxes;
@@ -2928,7 +2928,8 @@ fallback_blt:
 	tmp.need_magic_ca_pass = 0;
 
 	tmp.u.gen6.flags = COPY_FLAGS(alu);
-	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	tmp.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(tmp.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == COPY_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == COPY_VERTEX);
 
@@ -3102,7 +3103,8 @@ fallback:
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen6.flags = COPY_FLAGS(alu);
-	assert(GEN6_KERNEL(op->base.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	op->base.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(op->base.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(op->base.u.gen6.flags) == COPY_SAMPLER);
 	assert(GEN6_VERTEX(op->base.u.gen6.flags) == COPY_VERTEX);
 
@@ -3247,7 +3249,8 @@ gen6_render_fill_boxes(struct sna *sna,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS(op, format);
-	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	tmp.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(tmp.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
 
@@ -3427,7 +3430,8 @@ gen6_render_fill(struct sna *sna, uint8_t alu,
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen6.flags = FILL_FLAGS_NOBLEND;
-	assert(GEN6_KERNEL(op->base.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	op->base.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(op->base.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(op->base.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(op->base.u.gen6.flags) == FILL_VERTEX);
 
@@ -3509,7 +3513,8 @@ gen6_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS_NOBLEND;
-	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	tmp.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(tmp.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
 
@@ -3596,7 +3601,8 @@ gen6_render_clear(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo)
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS_NOBLEND;
-	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
+	tmp.u.gen6.wm_kernel = GEN6_WM_KERNEL_NOMASK;
+	assert(tmp.u.gen6.wm_kernel == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
 
@@ -3724,6 +3730,9 @@ static bool gen6_render_setup(struct sna *sna, int devid)
 							     wm_kernels[m].data, 16);
 		}
 	}
+
+	COMPILE_TIME_ASSERT(GEN6_KERNEL_COUNT <=
+			    1 << (sizeof(((struct sna_composite_op *)NULL)->u.gen6.wm_kernel) * 8));
 
 	COMPILE_TIME_ASSERT(SAMPLER_OFFSET(FILTER_COUNT, EXTEND_COUNT, FILTER_COUNT, EXTEND_COUNT) <= 0xfff);
 	ss = sna_static_stream_map(&general,
