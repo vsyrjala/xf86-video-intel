@@ -3958,6 +3958,7 @@ static bool gen7_render_setup(struct sna *sna, int devid)
 		assert(state->wm_kernel[m][0]|state->wm_kernel[m][1]|state->wm_kernel[m][2]);
 	}
 
+	COMPILE_TIME_ASSERT(SAMPLER_OFFSET(FILTER_COUNT, EXTEND_COUNT, FILTER_COUNT, EXTEND_COUNT) <= 0xfff);
 	ss = sna_static_stream_map(&general,
 				   2 * sizeof(*ss) *
 				   (2 +

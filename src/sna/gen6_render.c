@@ -3725,6 +3725,7 @@ static bool gen6_render_setup(struct sna *sna, int devid)
 		}
 	}
 
+	COMPILE_TIME_ASSERT(SAMPLER_OFFSET(FILTER_COUNT, EXTEND_COUNT, FILTER_COUNT, EXTEND_COUNT) <= 0xfff);
 	ss = sna_static_stream_map(&general,
 				   2 * sizeof(*ss) *
 				   (2 +
