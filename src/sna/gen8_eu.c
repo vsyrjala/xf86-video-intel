@@ -945,6 +945,8 @@ static void gen8_SAMPLE(struct brw_compile *p,
 
 /* shader logic */
 
+#define CONST_REGS 1
+
 static void wm_affine_st(struct brw_compile *p, int dw, int channel, int msg)
 {
 	int uv;
@@ -956,7 +958,7 @@ static void wm_affine_st(struct brw_compile *p, int dw, int channel, int msg)
 		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
 		uv = 4;
 	}
-	uv += 2*channel;
+	uv += 2*channel + CONST_REGS;
 
 	msg++;
 	gen8_PLN(p,
@@ -1017,6 +1019,67 @@ static int wm_sample__alpha(struct brw_compile *p, int dw,
 	return result;
 }
 
+#define R(s, len) ((s) + 0 * (len))
+#define G(s, len) ((s) + 1 * (len))
+#define B(s, len) ((s) + 2 * (len))
+#define A(s, len) ((s) + 3 * (len))
+
+static int wm_sample__planar(struct brw_compile *p, int dw,
+			     int channel, int msg, int result)
+{
+	int mlen, rlen;
+
+	if (dw == 8) {
+		mlen = 3;
+		rlen = 1;
+	} else {
+		mlen = 5;
+		rlen = 2;
+	}
+
+	gen8_SAMPLE(p, sample_result(dw, G(result, rlen)), msg,
+		    channel+1, channel, WRITEMASK_X, 0,
+		    rlen, mlen, true, simd(dw));
+
+	gen8_SAMPLE(p, sample_result(dw, R(result, rlen)), msg,
+		    channel+2, channel, WRITEMASK_X, 0,
+		    rlen, mlen, true, simd(dw));
+
+	gen8_SAMPLE(p, sample_result(dw, B(result, rlen)), msg,
+		    channel+3, channel, WRITEMASK_X, 0,
+		    rlen, mlen, true, simd(dw));
+
+	return result;
+}
+
+static int wm_sample__nv12(struct brw_compile *p, int dw,
+			   int channel, int msg, int result)
+{
+	int mlen, rlen;
+
+	if (dw == 8) {
+		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
+		mlen = 3;
+		rlen = 1;
+	} else {
+		gen8_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+		mlen = 5;
+		rlen = 2;
+	}
+
+	gen8_SAMPLE(p, sample_result(dw, B(result, rlen)), msg,
+		    channel+2, channel, WRITEMASK_XY, 0,
+		    2*rlen, mlen, true, simd(dw));
+
+	gen8_MOV(p, brw_vec8_grf(R(result, rlen), 0), brw_vec8_grf(A(result, rlen), 0));
+
+	gen8_SAMPLE(p, sample_result(dw, G(result, rlen)), msg,
+		    channel+1, channel, WRITEMASK_X, 0,
+		    rlen, mlen, true, simd(dw));
+
+	return result;
+}
+
 static int wm_affine(struct brw_compile *p, int dw,
 		     int channel, int msg, int result)
 {
@@ -1029,6 +1092,20 @@ static int wm_affine__alpha(struct brw_compile *p, int dw,
 {
 	wm_affine_st(p, dw, channel, msg);
 	return wm_sample__alpha(p, dw, channel, msg, result);
+}
+
+static int wm_affine__planar(struct brw_compile *p, int dw,
+			     int channel, int msg, int result)
+{
+	wm_affine_st(p, dw, channel, msg);
+	return wm_sample__planar(p, dw, channel, msg, result);
+}
+
+static int wm_affine__nv12(struct brw_compile *p, int dw,
+			   int channel, int msg, int result)
+{
+	wm_affine_st(p, dw, channel, msg);
+	return wm_sample__nv12(p, dw, channel, msg, result);
 }
 
 static inline struct brw_reg null_result(int dw)
@@ -1208,6 +1285,152 @@ gen8_wm_kernel__affine_mask_sa(struct brw_compile *p, int dispatch)
 	return true;
 }
 
+
+#define Crn(n) (20 + (n))
+#define Yn(n) (22 + (n))
+#define Cbn(n) (24 + (n))
+
+static int wm_yuv_to_rgb(struct brw_compile *p, int dw, int src)
+{
+	int len, constants;
+
+
+	if (dw == 8) {
+		constants = 4;
+		len = 1;
+		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
+	} else {
+		constants = 6;
+		len = 2;
+		gen8_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+	}
+#if 0
+	float kr, kb, kg;
+
+	/* BT.601 */
+	kr = 0.299f;
+	kb = 0.114f;
+	kg = 1.0f - kr - kb;
+
+	gen8_MOV(p, brw_vec1_grf(constants, 0), brw_imm_f(-16.0f/255.0f));
+	gen8_MOV(p, brw_vec1_grf(constants, 1), brw_imm_f(255.0f/(235.0f-16.0f)));
+
+	gen8_MOV(p, brw_vec1_grf(constants, 4), brw_imm_f(255.0f / 112.0f * (1.0f - kr)));
+	gen8_MOV(p, brw_vec1_grf(constants, 5), brw_imm_f(-255.0f / 112.0f * (1.0f - kr) * kr / kg));
+	gen8_MOV(p, brw_vec1_grf(constants, 6), brw_imm_f(-255.0f / 112.0f * (1.0f - kb) * kb / kg));
+	gen8_MOV(p, brw_vec1_grf(constants, 7), brw_imm_f(255.0f / 112.0f * (1.0f - kb)));
+#endif
+	gen8_ADD(p, brw_vec8_grf(Yn(0), 0), brw_vec8_grf(G(src, len), 0),
+		 brw_vec1_grf(constants, 0));
+	gen8_MUL(p, brw_vec8_grf(Yn(0), 0), brw_vec8_grf(Yn(0), 0),
+		brw_vec1_grf(constants, 1));
+
+	gen8_ADD(p, brw_vec8_grf(Crn(0), 0), brw_vec8_grf(R(src, len), 0),
+		brw_imm_f(-128.0f / 255.0f));
+	gen8_ADD(p, brw_vec8_grf(Cbn(0), 0), brw_vec8_grf(B(src, len), 0),
+		brw_imm_f(-128.0f / 255.0f));
+
+	gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
+
+	for (int n = 0; n < len; n++) {
+		gen8_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn(n), 0));
+		gen8_set_saturate(p, 1);
+		gen8_MAC(p, brw_vec8_grf(R(src+n, len), 0),
+			 brw_vec8_grf(Crn(n), 0),
+			 brw_vec1_grf(constants, 4));
+		gen8_set_saturate(p, 0);
+
+		gen8_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn(n), 0));
+		gen8_MAC(p, brw_acc_reg(),
+			 brw_vec8_grf(Crn(n), 0),
+			 brw_vec1_grf(constants, 5));
+		gen8_set_saturate(p, 1);
+		gen8_MAC(p, brw_vec8_grf(G(src+n, len), 0),
+			 brw_vec8_grf(Cbn(n), 0),
+			 brw_vec1_grf(constants, 6));
+		gen8_set_saturate(p, 0);
+
+		gen8_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn(n), 0));
+		gen8_set_saturate(p, 1);
+		gen8_MAC(p, brw_vec8_grf(B(src+n, len), 0),
+			 brw_vec8_grf(Cbn(n), 0),
+			 brw_vec1_grf(constants, 7));
+		gen8_set_saturate(p, 0);
+	}
+
+	if (dw == 8)
+		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
+	else
+		gen8_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+
+	gen8_MOV(p, brw_vec8_grf(A(src, len), 0), brw_imm_f(1.0f));
+
+	return src;
+}
+
+static void wm_write(struct brw_compile *p, int dw, int src)
+{
+	int n;
+
+	if (dw == 8) {
+		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
+		for (n = 0; n < 4; n++)
+			gen8_MOV(p,
+				 brw_message_reg(2 + n),
+				 brw_vec8_grf(src + n, 0));
+	} else {
+		gen8_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+		for (n = 0; n < 4; n++)
+			gen8_MOV(p,
+				 brw_message_reg(2 + 2*n),
+				 brw_vec8_grf(src + 2*n, 0));
+	}
+
+	fb_write(p, dw);
+}
+
+bool
+gen8_wm_kernel__yuv_packed(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	gen8_compile_init(p);
+
+	src = wm_affine(p, dispatch, 0, 1, 12);
+	src = wm_yuv_to_rgb(p, dispatch, src);
+	wm_write(p, dispatch, src);
+
+	return true;
+}
+
+bool
+gen8_wm_kernel__yuv_nv12(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	gen8_compile_init(p);
+
+	src = wm_affine__nv12(p, dispatch, 0, 1, 12);
+	src = wm_yuv_to_rgb(p, dispatch, src);
+	wm_write(p, dispatch, src);
+
+	return true;
+}
+
+bool
+gen8_wm_kernel__yuv_planar(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	gen8_compile_init(p);
+
+	src = wm_affine__planar(p, dispatch, 0, 1, 12);
+	src = wm_yuv_to_rgb(p, dispatch, src);
+	wm_write(p, dispatch, src);
+
+	return true;
+}
+
 /* Projective variants */
 
 static void wm_projective_st(struct brw_compile *p, int dw,
@@ -1224,7 +1447,7 @@ static void wm_projective_st(struct brw_compile *p, int dw,
 		gen8_set_compression_control(p, BRW_COMPRESSION_NONE);
 		uv = 4;
 	}
-	uv += 2*channel;
+	uv += 2*channel + CONST_REGS;
 
 	msg++;
 	/* First compute 1/z */
@@ -1338,7 +1561,7 @@ gen8_wm_kernel__affine_opacity(struct brw_compile *p, int dispatch)
 	gen8_compile_init(p);
 
 	src = wm_affine(p, dispatch, 0, 1, 12);
-	mask = dispatch == 16 ? 8 : 6;
+	mask = (dispatch == 16 ? 8 : 6) + CONST_REGS;
 	wm_write__opacity(p, dispatch, src, mask);
 
 	return true;
@@ -1351,7 +1574,7 @@ gen8_wm_kernel__projective_opacity(struct brw_compile *p, int dispatch)
 
 	gen8_compile_init(p);
 
-	mask = dispatch == 16 ? 8 : 6;
+	mask = (dispatch == 16 ? 8 : 6) + CONST_REGS;
 	src = wm_projective(p, dispatch, 0, 1, 12);
 	wm_write__opacity(p, dispatch, src, mask);
 

@@ -3,6 +3,8 @@
 #define X16 8
 #define Y16 10
 
+#define CONST_REGS 1
+
 static void brw_wm_xy(struct brw_compile *p, int dw)
 {
 	struct brw_reg r1 = brw_vec1_grf(1, 0);
@@ -46,7 +48,7 @@ static void brw_wm_affine_st(struct brw_compile *p, int dw,
 		brw_set_compression_control(p, BRW_COMPRESSION_NONE);
 		uv = p->gen >= 060 ? 4 : 3;
 	}
-	uv += 2*channel;
+	uv += 2*channel + CONST_REGS;
 
 	msg++;
 	if (p->gen >= 060) {
@@ -140,6 +142,81 @@ static int brw_wm_sample__alpha(struct brw_compile *p, int dw,
 	return result;
 }
 
+#define R(s, len) ((s) + 0 * (len))
+#define G(s, len) ((s) + 1 * (len))
+#define B(s, len) ((s) + 2 * (len))
+#define A(s, len) ((s) + 3 * (len))
+
+static int brw_wm_sample__planar(struct brw_compile *p, int dw,
+				 int channel, int msg, int result)
+{
+	struct brw_reg src0;
+	int mlen, rlen;
+
+	if (dw == 8) {
+		brw_set_compression_control(p, BRW_COMPRESSION_NONE);
+		mlen = 3;
+		rlen = 1;
+	} else {
+		brw_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+		mlen = 5;
+		rlen = 2;
+	}
+
+	if (p->gen >= 060)
+		src0 = brw_message_reg(msg);
+	else
+		src0 = brw_vec8_grf(0, 0);
+
+	brw_SAMPLE(p, sample_result(dw, G(result, rlen)), msg, src0,
+		   channel+1, channel, WRITEMASK_X, 0,
+		   rlen, mlen, true, simd(dw));
+
+	brw_SAMPLE(p, sample_result(dw, R(result, rlen)), msg, src0,
+		   channel+2, channel, WRITEMASK_X, 0,
+		   rlen, mlen, true, simd(dw));
+
+	brw_SAMPLE(p, sample_result(dw, B(result, rlen)), msg, src0,
+		   channel+3, channel, WRITEMASK_X, 0,
+		   rlen, mlen, true, simd(dw));
+
+	return result;
+}
+
+static int brw_wm_sample__nv12(struct brw_compile *p, int dw,
+			       int channel, int msg, int result)
+{
+	struct brw_reg src0;
+	int mlen, rlen;
+
+	if (dw == 8) {
+		brw_set_compression_control(p, BRW_COMPRESSION_NONE);
+		mlen = 3;
+		rlen = 1;
+	} else {
+		brw_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+		mlen = 5;
+		rlen = 2;
+	}
+
+	if (p->gen >= 060)
+		src0 = brw_message_reg(msg);
+	else
+		src0 = brw_vec8_grf(0, 0);
+
+	brw_SAMPLE(p, sample_result(dw, B(result, rlen)), msg, src0,
+		   channel+2, channel, WRITEMASK_XY, 0,
+		   2*rlen, mlen, true, simd(dw));
+
+	brw_MOV(p, brw_vec8_grf(R(result, rlen), 0), brw_vec8_grf(A(result, rlen), 0));
+
+	brw_SAMPLE(p, sample_result(dw, G(result, rlen)), msg, src0,
+		   channel+1, channel, WRITEMASK_X, 0,
+		   rlen, mlen, true, simd(dw));
+
+	return result;
+}
+
 static int brw_wm_affine(struct brw_compile *p, int dw,
 			 int channel, int msg, int result)
 {
@@ -152,6 +229,20 @@ static int brw_wm_affine__alpha(struct brw_compile *p, int dw,
 {
 	brw_wm_affine_st(p, dw, channel, msg);
 	return brw_wm_sample__alpha(p, dw, channel, msg, result);
+}
+
+static int brw_wm_affine__planar(struct brw_compile *p, int dw,
+				 int channel, int msg, int result)
+{
+	brw_wm_affine_st(p, dw, channel, msg);
+	return brw_wm_sample__planar(p, dw, channel, msg, result);
+}
+
+static int brw_wm_affine__nv12(struct brw_compile *p, int dw,
+			       int channel, int msg, int result)
+{
+	brw_wm_affine_st(p, dw, channel, msg);
+	return brw_wm_sample__nv12(p, dw, channel, msg, result);
 }
 
 static inline struct brw_reg null_result(int dw)
@@ -449,9 +540,13 @@ done:
 bool
 brw_wm_kernel__affine(struct brw_compile *p, int dispatch)
 {
+	int src;
+
 	if (p->gen < 060)
 		brw_wm_xy(p, dispatch);
-	brw_wm_write(p, dispatch, brw_wm_affine(p, dispatch, 0, 1, 12));
+
+	src = brw_wm_affine(p, dispatch, 0, 1, 12);
+	brw_wm_write(p, dispatch, src);
 
 	return true;
 }
@@ -501,6 +596,111 @@ brw_wm_kernel__affine_mask_sa(struct brw_compile *p, int dispatch)
 	return true;
 }
 
+#define Crn 20
+#define Yn 22
+#define Cbn 24
+
+static int brw_wm_yuv_to_rgb(struct brw_compile *p, int dw, int src)
+{
+	int len, constants;
+
+	if (p->gen < 060)
+		constants = 3;
+	else
+		constants = dw == 16 ? 6 : 4;
+
+	if (dw == 8) {
+		len = 1;
+		brw_set_compression_control(p, BRW_COMPRESSION_NONE);
+	} else {
+		len = 2;
+		brw_set_compression_control(p, BRW_COMPRESSION_COMPRESSED);
+	}
+
+	brw_ADD(p, brw_vec8_grf(Yn, 0), brw_vec8_grf(G(src, len), 0),
+		brw_vec1_grf(constants, 0));
+	brw_MUL(p, brw_vec8_grf(Yn, 0), brw_vec8_grf(Yn, 0),
+		brw_vec1_grf(constants, 1));
+
+	brw_ADD(p, brw_vec8_grf(Crn, 0), brw_vec8_grf(R(src, len), 0),
+		brw_imm_f(-128.0f / 255.0f));
+	brw_ADD(p, brw_vec8_grf(Cbn, 0), brw_vec8_grf(B(src, len), 0),
+		brw_imm_f(-128.0f / 255.0f));
+
+	brw_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn, 0));
+	brw_set_saturate(p, 1);
+	brw_MAC(p, brw_vec8_grf(R(src, len), 0),
+		brw_vec8_grf(Crn, 0),
+		brw_vec1_grf(constants, 4));
+	brw_set_saturate(p, 0);
+
+	brw_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn, 0));
+	brw_MAC(p, brw_acc_reg(),
+		brw_vec8_grf(Crn, 0),
+		brw_vec1_grf(constants, 5));
+	brw_set_saturate(p, 1);
+	brw_MAC(p, brw_vec8_grf(G(src, len), 0),
+		brw_vec8_grf(Cbn, 0),
+		brw_vec1_grf(constants, 6));
+	brw_set_saturate(p, 0);
+
+	brw_MOV(p, brw_acc_reg(), brw_vec8_grf(Yn, 0));
+	brw_set_saturate(p, 1);
+	brw_MAC(p, brw_vec8_grf(B(src, len), 0),
+		brw_vec8_grf(Cbn, 0),
+		brw_vec1_grf(constants, 7));
+	brw_set_saturate(p, 0);
+
+	brw_MOV(p, brw_vec8_grf(A(src, len), 0), brw_imm_f(1.0f));
+
+	return src;
+}
+
+bool
+brw_wm_kernel__yuv_packed(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	if (p->gen < 060)
+		brw_wm_xy(p, dispatch);
+
+	src = brw_wm_affine(p, dispatch, 0, 1, 12);
+	src = brw_wm_yuv_to_rgb(p, dispatch, src);
+	brw_wm_write(p, dispatch, src);
+
+	return true;
+}
+
+bool
+brw_wm_kernel__yuv_nv12(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	if (p->gen < 060)
+		brw_wm_xy(p, dispatch);
+
+	src = brw_wm_affine__nv12(p, dispatch, 0, 1, 12);
+	src = brw_wm_yuv_to_rgb(p, dispatch, src);
+	brw_wm_write(p, dispatch, src);
+
+	return true;
+}
+
+bool
+brw_wm_kernel__yuv_planar(struct brw_compile *p, int dispatch)
+{
+	int src;
+
+	if (p->gen < 060)
+		brw_wm_xy(p, dispatch);
+
+	src = brw_wm_affine__planar(p, dispatch, 0, 1, 12);
+	src = brw_wm_yuv_to_rgb(p, dispatch, src);
+	brw_wm_write(p, dispatch, src);
+
+	return true;
+}
+
 /* Projective variants */
 
 static void brw_wm_projective_st(struct brw_compile *p, int dw,
@@ -515,7 +715,7 @@ static void brw_wm_projective_st(struct brw_compile *p, int dw,
 		brw_set_compression_control(p, BRW_COMPRESSION_NONE);
 		uv = p->gen >= 060 ? 4 : 3;
 	}
-	uv += 2*channel;
+	uv += 2*channel + CONST_REGS;
 
 	msg++;
 	if (p->gen >= 060) {
@@ -653,9 +853,9 @@ brw_wm_kernel__affine_opacity(struct brw_compile *p, int dispatch)
 
 	if (p->gen < 060) {
 		brw_wm_xy(p, dispatch);
-		mask = 5;
+		mask = 5+CONST_REGS;
 	} else
-		mask = dispatch == 16 ? 8 : 6;
+		mask = (dispatch == 16 ? 8 : 6) + CONST_REGS;
 
 	src = brw_wm_affine(p, dispatch, 0, 1, 12);
 	brw_wm_write__opacity(p, dispatch, src, mask);
@@ -670,9 +870,9 @@ brw_wm_kernel__projective_opacity(struct brw_compile *p, int dispatch)
 
 	if (p->gen < 060) {
 		brw_wm_xy(p, dispatch);
-		mask = 5;
+		mask = 5 + CONST_REGS;
 	} else
-		mask = dispatch == 16 ? 8 : 6;
+		mask = (dispatch == 16 ? 8 : 6) + CONST_REGS;
 
 	src = brw_wm_projective(p, dispatch, 0, 1, 12);
 	brw_wm_write__opacity(p, dispatch, src, mask);

@@ -93,67 +93,19 @@
  * 12. Color Calculator (CC)
  */
 
-#if !NO_VIDEO
-static const uint32_t ps_kernel_packed_bt601[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_argb.g8b"
-#include "exa_wm_yuv_rgb_bt601.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_planar_bt601[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_planar.g8b"
-#include "exa_wm_yuv_rgb_bt601.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_nv12_bt601[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_nv12.g8b"
-#include "exa_wm_yuv_rgb_bt601.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_packed_bt709[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_argb.g8b"
-#include "exa_wm_yuv_rgb_bt709.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_planar_bt709[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_planar.g8b"
-#include "exa_wm_yuv_rgb_bt709.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_nv12_bt709[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_nv12.g8b"
-#include "exa_wm_yuv_rgb_bt709.g8b"
-#include "exa_wm_write.g8b"
-};
-
-static const uint32_t ps_kernel_rgb[][4] = {
-#include "exa_wm_src_affine.g8b"
-#include "exa_wm_src_sample_argb.g8b"
-#include "exa_wm_write.g8b"
-};
-#endif
-
 #define SURFACE_DW (64 / sizeof(uint32_t));
 
-#define KERNEL(kernel_enum, kernel, num_surfaces) \
-    [GEN9_WM_KERNEL_##kernel_enum] = {#kernel_enum, kernel, sizeof(kernel), num_surfaces}
 #define NOKERNEL(kernel_enum, func, num_surfaces) \
-    [GEN9_WM_KERNEL_##kernel_enum] = {#kernel_enum, (void *)func, 0, num_surfaces}
+	[GEN9_WM_KERNEL_##kernel_enum] = {#kernel_enum, (void *)func, 0, num_surfaces, false}
+#define NOKERNEL_VIDEO(kernel_enum, func, num_surfaces) \
+	[GEN9_WM_KERNEL_##kernel_enum] = {#kernel_enum, (void *)func, 0, num_surfaces, true}
+
 static const struct wm_kernel_info {
 	const char *name;
 	const void *data;
 	unsigned int size;
 	int num_surfaces;
+	bool has_constants;
 } wm_kernels[] = {
 	NOKERNEL(NOMASK, gen8_wm_kernel__affine, 2),
 	NOKERNEL(NOMASK_P, gen8_wm_kernel__projective, 2),
@@ -171,16 +123,12 @@ static const struct wm_kernel_info {
 	NOKERNEL(OPACITY_P, gen8_wm_kernel__projective_opacity, 2),
 
 #if !NO_VIDEO
-	KERNEL(VIDEO_PLANAR_BT601, ps_kernel_planar_bt601, 7),
-	KERNEL(VIDEO_NV12_BT601, ps_kernel_nv12_bt601, 7),
-	KERNEL(VIDEO_PACKED_BT601, ps_kernel_packed_bt601, 2),
-	KERNEL(VIDEO_PLANAR_BT709, ps_kernel_planar_bt709, 7),
-	KERNEL(VIDEO_NV12_BT709, ps_kernel_nv12_bt709, 7),
-	KERNEL(VIDEO_PACKED_BT709, ps_kernel_packed_bt709, 2),
-	KERNEL(VIDEO_RGB, ps_kernel_rgb, 2),
+	NOKERNEL_VIDEO(VIDEO_PLANAR, gen8_wm_kernel__yuv_planar, 4),
+	NOKERNEL_VIDEO(VIDEO_NV12, gen8_wm_kernel__yuv_nv12, 3),
+	NOKERNEL_VIDEO(VIDEO_PACKED, gen8_wm_kernel__yuv_packed, 2),
+	NOKERNEL(VIDEO_RGB, gen8_wm_kernel__affine, 2),
 #endif
 };
-#undef KERNEL
 
 static const struct blendinfo {
 	uint8_t src_alpha;
@@ -554,9 +502,10 @@ gen9_emit_push_constants(struct sna *sna)
 	OUT_BATCH(GEN9_3DSTATE_PUSH_CONSTANT_ALLOC_GS | (2 - 2));
 	OUT_BATCH(0);
 
-	OUT_BATCH(GEN9_3DSTATE_PUSH_CONSTANT_ALLOC_PS | (2 - 2));
-	OUT_BATCH(0);
 #endif
+	OUT_BATCH(GEN9_3DSTATE_PUSH_CONSTANT_ALLOC_PS | (2 - 2));
+	OUT_BATCH(0 << PUSH_CONSTANT_BUFFER_OFFSET_SHIFT |
+		  32 << PUSH_CONSTANT_BUFFER_SIZE_SHIFT); /* 32 KiB */
 }
 
 static void
@@ -566,7 +515,7 @@ gen9_emit_urb(struct sna *sna)
 	OUT_BATCH(GEN9_3DSTATE_URB_VS | (2 - 2));
 	OUT_BATCH(sna->render_state.gen9.info->urb.max_vs_entries << URB_ENTRY_NUMBER_SHIFT |
 		  (2 - 1) << URB_ENTRY_SIZE_SHIFT |
-		  4 << URB_STARTING_ADDRESS_SHIFT);
+		  4 << URB_STARTING_ADDRESS_SHIFT); /* 4 * 8 KiB */
 
 	OUT_BATCH(GEN9_3DSTATE_URB_HS | (2 - 2));
 	OUT_BATCH(0 << URB_ENTRY_SIZE_SHIFT |
@@ -879,16 +828,30 @@ gen9_emit_wm_invariant(struct sna *sna)
 	OUT_BATCH(0);
 	OUT_BATCH(0);
 	OUT_BATCH(0);
+}
 
-#if SIM
-	OUT_BATCH(GEN9_3DSTATE_CONSTANT_PS | (11 - 2));
-	OUT_BATCH(0);
-	OUT_BATCH(0);
-	OUT_BATCH64(0);
-	OUT_BATCH64(0);
-	OUT_BATCH64(0);
-	OUT_BATCH64(0);
-#endif
+static void
+gen9_emit_wm_constants(struct sna *sna,
+		       const struct sna_composite_op *op)
+{
+	if (op->u.gen9.constants) {
+		OUT_BATCH(GEN9_3DSTATE_CONSTANT_PS | (11 - 2));
+		OUT_BATCH(0);
+		OUT_BATCH(1 << 16);
+		OUT_BATCH64(0);
+		OUT_BATCH64(0);
+		OUT_BATCH64(0);
+		OUT_BATCH64(sna->render_state.gen9.constants +
+			    (op->u.gen9.constants - 1) * 64);
+	} else {
+		OUT_BATCH(GEN9_3DSTATE_CONSTANT_PS | (11 - 2));
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+		OUT_BATCH64(0);
+		OUT_BATCH64(0);
+		OUT_BATCH64(0);
+		OUT_BATCH64(0);
+	}
 }
 
 static void
@@ -1055,7 +1018,7 @@ gen9_emit_sf(struct sna *sna, bool has_mask)
 }
 
 static void
-gen9_emit_wm(struct sna *sna, int kernel)
+gen9_emit_wm(struct sna *sna, int kernel, bool has_constants)
 {
 	const uint32_t *kernels;
 
@@ -1082,12 +1045,13 @@ gen9_emit_wm(struct sna *sna, int kernel)
 		  wm_kernels[kernel].num_surfaces << PS_BINDING_TABLE_ENTRY_COUNT_SHIFT);
 	OUT_BATCH64(0); /* scratch address */
 	OUT_BATCH(PS_MAX_THREADS |
+		  (has_constants ? PS_PUSH_CONSTANT_ENABLE : 0) |
 		  (kernels[0] ? PS_8_DISPATCH_ENABLE : 0) |
 		  (kernels[1] ? PS_16_DISPATCH_ENABLE : 0) |
 		  (kernels[2] ? PS_32_DISPATCH_ENABLE : 0));
-	OUT_BATCH((kernels[0] ? 4 : kernels[1] ? 6 : 8) << PS_DISPATCH_START_GRF_SHIFT_0 |
-		  8 << PS_DISPATCH_START_GRF_SHIFT_1 |
-		  6 << PS_DISPATCH_START_GRF_SHIFT_2);
+	OUT_BATCH(((kernels[0] ? 4 : kernels[1] ? 6 : 8) + !has_constants) << PS_DISPATCH_START_GRF_SHIFT_0 |
+		  (8 + !has_constants) << PS_DISPATCH_START_GRF_SHIFT_1 |
+		  (6 + !has_constants) << PS_DISPATCH_START_GRF_SHIFT_2);
 	OUT_BATCH64(kernels[2]);
 	OUT_BATCH64(kernels[1]);
 }
@@ -1349,7 +1313,9 @@ gen9_emit_state(struct sna *sna,
 	gen9_emit_cc(sna, GEN9_BLEND(op->u.gen9.flags));
 	gen9_emit_sampler(sna, GEN9_SAMPLER(op->u.gen9.flags));
 	gen9_emit_sf(sna, GEN9_VERTEX(op->u.gen9.flags) >> 2);
-	gen9_emit_wm(sna, GEN9_KERNEL(op->u.gen9.flags));
+	gen9_emit_wm_constants(sna, op);
+	gen9_emit_wm(sna, GEN9_KERNEL(op->u.gen9.flags),
+		     op->u.gen9.constants);
 	gen9_emit_vertex_elements(sna, op);
 	gen9_emit_binding_table(sna, wm_binding_table);
 
@@ -1372,10 +1338,12 @@ static bool gen9_magic_ca_pass(struct sna *sna,
 	gen9_emit_cc(sna,
 		     GEN9_BLEND(gen9_get_blend(PictOpAdd, true,
 					       op->dst.format)));
+	gen9_emit_wm_constants(sna, op);
 	gen9_emit_wm(sna,
 		     gen9_choose_composite_kernel(PictOpAdd,
 						  true, true,
-						  op->is_affine));
+						  op->is_affine),
+		     op->u.gen9.constants);
 
 	OUT_BATCH(GEN9_3DPRIMITIVE | (7 - 2));
 	OUT_BATCH(0); /* ignored, see VF_TOPOLOGY */
@@ -1618,7 +1586,9 @@ static int gen9_get_rectangles__flush(struct sna *sna,
 		if (gen9_magic_ca_pass(sna, op)) {
 			gen9_emit_pipe_invalidate(sna);
 			gen9_emit_cc(sna, GEN9_BLEND(op->u.gen9.flags));
-			gen9_emit_wm(sna, GEN9_KERNEL(op->u.gen9.flags));
+			gen9_emit_wm_constants(sna, op);
+			gen9_emit_wm(sna, GEN9_KERNEL(op->u.gen9.flags),
+				     op->u.gen9.constants);
 		}
 	}
 
@@ -2553,6 +2523,7 @@ gen9_render_composite(struct sna *sna,
 							    tmp->has_component_alpha,
 							    tmp->is_affine),
 			       gen4_choose_composite_emitter(sna, tmp));
+	tmp->u.gen9.constants = 0;
 
 	tmp->blt   = gen9_render_composite_blt;
 	tmp->box   = gen9_render_composite_box;
@@ -2783,6 +2754,7 @@ gen9_render_composite_spans(struct sna *sna,
 			       gen9_get_blend(tmp->base.op, false, tmp->base.dst.format),
 			       GEN9_WM_KERNEL_OPACITY | !tmp->base.is_affine,
 			       gen4_choose_spans_emitter(sna, tmp));
+	tmp->base.u.gen9.constants = 0;
 
 	tmp->box   = gen9_render_composite_spans_box;
 	tmp->boxes = gen9_render_composite_spans_boxes;
@@ -3045,6 +3017,7 @@ fallback_blt:
 	tmp.need_magic_ca_pass = 0;
 
 	tmp.u.gen9.flags = COPY_FLAGS(alu);
+	tmp.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
 	if (!kgem_check_bo(&sna->kgem, tmp.dst.bo, tmp.src.bo, NULL)) {
@@ -3214,6 +3187,7 @@ fallback:
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen9.flags = COPY_FLAGS(alu);
+	op->base.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, src_bo, NULL)) {
@@ -3366,6 +3340,7 @@ gen9_render_fill_boxes(struct sna *sna,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen9.flags = FILL_FLAGS(op, format);
+	tmp.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, NULL)) {
@@ -3552,6 +3527,7 @@ gen9_render_fill(struct sna *sna, uint8_t alu,
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen9.flags = FILL_FLAGS_NOBLEND;
+	op->base.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, dst_bo);
 	if (!kgem_check_bo(&sna->kgem, dst_bo, NULL)) {
@@ -3637,6 +3613,7 @@ gen9_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen9.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, bo);
 	if (!kgem_check_bo(&sna->kgem, bo, NULL)) {
@@ -3723,6 +3700,7 @@ gen9_render_clear(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo)
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen9.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen9.constants = 0;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, bo);
 	if (!kgem_check_bo(&sna->kgem, bo, NULL)) {
@@ -3805,11 +3783,11 @@ static void gen9_emit_video_state(struct sna *sna,
 				  const struct sna_composite_op *op)
 {
 	struct sna_video_frame *frame = op->priv;
-	uint32_t src_surf_format[6];
-	uint32_t src_surf_base[6];
-	int src_width[6];
-	int src_height[6];
-	int src_pitch[6];
+	uint32_t src_surf_format[3];
+	uint32_t src_surf_base[3];
+	int src_width[3];
+	int src_height[3];
+	int src_pitch[3];
 	uint32_t *binding_table;
 	uint16_t offset;
 	int n_src, n;
@@ -3819,20 +3797,18 @@ static void gen9_emit_video_state(struct sna *sna,
 	gen9_get_batch(sna, op);
 
 	src_surf_base[0] = 0;
-	src_surf_base[1] = 0;
-	src_surf_base[2] = frame->VBufOffset;
-	src_surf_base[3] = frame->VBufOffset;
-	src_surf_base[4] = frame->UBufOffset;
-	src_surf_base[5] = frame->UBufOffset;
+	src_surf_base[1] = frame->VBufOffset;
+	src_surf_base[2] = frame->UBufOffset;
 
 	if (is_planar_fourcc(frame->id)) {
-		for (n = 0; n < 2; n++) {
-			src_surf_format[n] = SURFACEFORMAT_R8_UNORM;
-			src_width[n]  = frame->width;
-			src_height[n] = frame->height;
-			src_pitch[n]  = frame->pitch[1];
-		}
-		for (; n < 6; n++) {
+		n_src = is_nv12_fourcc(frame->id) ? 2 : 3;
+
+		src_surf_format[0] = SURFACEFORMAT_R8_UNORM;
+		src_width[0]  = frame->width;
+		src_height[0] = frame->height;
+		src_pitch[0]  = frame->pitch[1];
+
+		for (n = 1; n < n_src; n++) {
 			if (is_nv12_fourcc(frame->id))
 				src_surf_format[n] = SURFACEFORMAT_R8G8_UNORM;
 			else
@@ -3841,8 +3817,9 @@ static void gen9_emit_video_state(struct sna *sna,
 			src_height[n] = frame->height / 2;
 			src_pitch[n]  = frame->pitch[0];
 		}
-		n_src = 6;
 	} else {
+		n_src = 1;
+
 		if (frame->id == FOURCC_RGB888)
 			src_surf_format[0] = SURFACEFORMAT_B8G8R8X8_UNORM;
 		else if (frame->id == FOURCC_UYVY)
@@ -3853,7 +3830,6 @@ static void gen9_emit_video_state(struct sna *sna,
 		src_width[0]  = frame->width;
 		src_height[0] = frame->height;
 		src_pitch[0]  = frame->pitch[0];
-		n_src = 1;
 	}
 
 	binding_table = gen9_composite_get_binding_table(sna, &offset);
@@ -3884,24 +3860,24 @@ static unsigned select_video_kernel(const struct sna_video *video,
 	case FOURCC_YV12:
 	case FOURCC_I420:
 	case FOURCC_XVMC:
-		return video->colorspace ?
-			GEN9_WM_KERNEL_VIDEO_PLANAR_BT709 :
-			GEN9_WM_KERNEL_VIDEO_PLANAR_BT601;
+		return GEN9_WM_KERNEL_VIDEO_PLANAR;
 
 	case FOURCC_NV12:
-		return video->colorspace ?
-			GEN9_WM_KERNEL_VIDEO_NV12_BT709 :
-			GEN9_WM_KERNEL_VIDEO_NV12_BT601;
+		return GEN9_WM_KERNEL_VIDEO_NV12;
 
 	case FOURCC_RGB888:
 	case FOURCC_RGB565:
 		return GEN9_WM_KERNEL_VIDEO_RGB;
 
 	default:
-		return video->colorspace ?
-			GEN9_WM_KERNEL_VIDEO_PACKED_BT709 :
-			GEN9_WM_KERNEL_VIDEO_PACKED_BT601;
+		return GEN9_WM_KERNEL_VIDEO_PACKED;
 	}
+}
+
+static unsigned select_video_constants(const struct sna_video *video)
+{
+	/* FIXME range <<1 */
+	return video->colorspace + 1;
 }
 
 static bool
@@ -3966,6 +3942,7 @@ gen9_render_video(struct sna *sna,
 			       NO_BLEND,
 			       select_video_kernel(video, frame),
 			       2);
+	tmp.u.gen9.constants = select_video_constants(video),
 	tmp.priv = frame;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
@@ -4157,6 +4134,8 @@ static bool gen9_render_setup(struct sna *sna)
 	}
 
 	state->cc_blend = gen9_create_blend_state(&general);
+
+	state->constants = sna_render_create_constants(&general);
 
 	state->general_bo = sna_static_stream_fini(sna, &general);
 	return state->general_bo != NULL;

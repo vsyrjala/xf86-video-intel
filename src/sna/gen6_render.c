@@ -101,58 +101,17 @@ static const struct gt_info gt2_info = {
 	.gt = 2,
 };
 
-static const uint32_t ps_kernel_packed_bt601[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_argb.g6b"
-#include "exa_wm_yuv_rgb_bt601.g6b"
-#include "exa_wm_write.g6b"
-};
-
-static const uint32_t ps_kernel_planar_bt601[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_planar.g6b"
-#include "exa_wm_yuv_rgb_bt601.g6b"
-#include "exa_wm_write.g6b"
-};
-
-static const uint32_t ps_kernel_nv12_bt601[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_nv12.g6b"
-#include "exa_wm_yuv_rgb_bt601.g6b"
-#include "exa_wm_write.g6b"
-};
-
-static const uint32_t ps_kernel_packed_bt709[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_argb.g6b"
-#include "exa_wm_yuv_rgb_bt709.g6b"
-#include "exa_wm_write.g6b"
-};
-
-static const uint32_t ps_kernel_planar_bt709[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_planar.g6b"
-#include "exa_wm_yuv_rgb_bt709.g6b"
-#include "exa_wm_write.g6b"
-};
-
-static const uint32_t ps_kernel_nv12_bt709[][4] = {
-#include "exa_wm_src_affine.g6b"
-#include "exa_wm_src_sample_nv12.g6b"
-#include "exa_wm_yuv_rgb_bt709.g6b"
-#include "exa_wm_write.g6b"
-};
-
 #define NOKERNEL(kernel_enum, func, ns) \
-    [GEN6_WM_KERNEL_##kernel_enum] = {#kernel_enum, func, 0, ns}
-#define KERNEL(kernel_enum, kernel, ns) \
-    [GEN6_WM_KERNEL_##kernel_enum] = {#kernel_enum, kernel, sizeof(kernel), ns}
+	[GEN6_WM_KERNEL_##kernel_enum] = {#kernel_enum, func, 0, ns, false}
+#define NOKERNEL_VIDEO(kernel_enum, func, ns) \
+	[GEN6_WM_KERNEL_##kernel_enum] = {#kernel_enum, func, 0, ns, true}
 
 static const struct wm_kernel_info {
 	const char *name;
 	const void *data;
 	unsigned int size;
 	unsigned int num_surfaces;
+	bool has_constants;
 } wm_kernels[] = {
 	NOKERNEL(NOMASK, brw_wm_kernel__affine, 2),
 	NOKERNEL(NOMASK_P, brw_wm_kernel__projective, 2),
@@ -169,16 +128,10 @@ static const struct wm_kernel_info {
 	NOKERNEL(OPACITY, brw_wm_kernel__affine_opacity, 2),
 	NOKERNEL(OPACITY_P, brw_wm_kernel__projective_opacity, 2),
 
-
-	KERNEL(VIDEO_PLANAR_BT601, ps_kernel_planar_bt601, 7),
-	KERNEL(VIDEO_NV12_BT601, ps_kernel_nv12_bt601, 7),
-	KERNEL(VIDEO_PACKED_BT601, ps_kernel_packed_bt601, 2),
-
-	KERNEL(VIDEO_PLANAR_BT709, ps_kernel_planar_bt709, 7),
-	KERNEL(VIDEO_NV12_BT709, ps_kernel_nv12_bt709, 7),
-	KERNEL(VIDEO_PACKED_BT709, ps_kernel_packed_bt709, 2),
+	NOKERNEL_VIDEO(VIDEO_PLANAR, brw_wm_kernel__yuv_planar, 4),
+	NOKERNEL_VIDEO(VIDEO_NV12, brw_wm_kernel__yuv_nv12, 3),
+	NOKERNEL_VIDEO(VIDEO_PACKED, brw_wm_kernel__yuv_packed, 2),
 };
-#undef KERNEL
 
 static const struct blendinfo {
 	bool src_alpha;
@@ -568,14 +521,23 @@ gen6_emit_clip(struct sna *sna)
 }
 
 static void
-gen6_emit_wm_constants(struct sna *sna)
+gen6_emit_wm_constants(struct sna *sna,
+		       const struct sna_composite_op *op)
 {
-	/* disable WM constant buffer */
-	OUT_BATCH(GEN6_3DSTATE_CONSTANT_PS | (5 - 2));
-	OUT_BATCH(0);
-	OUT_BATCH(0);
-	OUT_BATCH(0);
-	OUT_BATCH(0);
+	if (op->u.gen6.constants) {
+		OUT_BATCH(GEN6_3DSTATE_CONSTANT_PS | (1<<12) | (5 - 2));
+		OUT_BATCH((sna->render_state.gen6.constants +
+			   (op->u.gen6.constants - 1) * 64) | 1);
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+	} else {
+		OUT_BATCH(GEN6_3DSTATE_CONSTANT_PS | (5 - 2));
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+		OUT_BATCH(0);
+	}
 }
 
 static void
@@ -615,7 +577,6 @@ gen6_emit_invariant(struct sna *sna)
 	gen6_emit_vs(sna);
 	gen6_emit_gs(sna);
 	gen6_emit_clip(sna);
-	gen6_emit_wm_constants(sna);
 	gen6_emit_null_depth_buffer(sna);
 
 	sna->render_state.gen6.needs_invariant = false;
@@ -700,7 +661,8 @@ gen6_emit_sf(struct sna *sna, bool has_mask)
 }
 
 static void
-gen6_emit_wm(struct sna *sna, unsigned int kernel, bool has_mask)
+gen6_emit_wm(struct sna *sna, unsigned int kernel, bool has_mask,
+	     bool has_constants)
 {
 	const uint32_t *kernels;
 
@@ -720,9 +682,9 @@ gen6_emit_wm(struct sna *sna, unsigned int kernel, bool has_mask)
 	OUT_BATCH(1 << GEN6_3DSTATE_WM_SAMPLER_COUNT_SHIFT |
 		  wm_kernels[kernel].num_surfaces << GEN6_3DSTATE_WM_BINDING_TABLE_ENTRY_COUNT_SHIFT);
 	OUT_BATCH(0); /* scratch space */
-	OUT_BATCH((kernels[0] ? 4 : kernels[1] ? 6 : 8) << GEN6_3DSTATE_WM_DISPATCH_0_START_GRF_SHIFT |
-		  8 << GEN6_3DSTATE_WM_DISPATCH_1_START_GRF_SHIFT |
-		  6 << GEN6_3DSTATE_WM_DISPATCH_2_START_GRF_SHIFT);
+	OUT_BATCH(((kernels[0] ? 4 : kernels[1] ? 6 : 8) + !has_constants) << GEN6_3DSTATE_WM_DISPATCH_0_START_GRF_SHIFT |
+		  (8 + !has_constants) << GEN6_3DSTATE_WM_DISPATCH_1_START_GRF_SHIFT |
+		  (6 + !has_constants) << GEN6_3DSTATE_WM_DISPATCH_2_START_GRF_SHIFT);
 	OUT_BATCH((sna->render_state.gen6.info->max_wm_threads - 1) << GEN6_3DSTATE_WM_MAX_THREADS_SHIFT |
 		  (kernels[0] ? GEN6_3DSTATE_WM_8_DISPATCH_ENABLE : 0) |
 		  (kernels[1] ? GEN6_3DSTATE_WM_16_DISPATCH_ENABLE : 0) |
@@ -967,7 +929,9 @@ gen6_emit_state(struct sna *sna,
 	gen6_emit_cc(sna, GEN6_BLEND(op->u.gen6.flags));
 	gen6_emit_sampler(sna, GEN6_SAMPLER(op->u.gen6.flags));
 	gen6_emit_sf(sna, GEN6_VERTEX(op->u.gen6.flags) >> 2);
-	gen6_emit_wm(sna, GEN6_KERNEL(op->u.gen6.flags), GEN6_VERTEX(op->u.gen6.flags) >> 2);
+	gen6_emit_wm_constants(sna, op);
+	gen6_emit_wm(sna, GEN6_KERNEL(op->u.gen6.flags), GEN6_VERTEX(op->u.gen6.flags) >> 2,
+		     op->u.gen6.constants);
 	gen6_emit_vertex_elements(sna, op);
 	gen6_emit_binding_table(sna, wm_binding_table);
 
@@ -988,11 +952,13 @@ static bool gen6_magic_ca_pass(struct sna *sna,
 	gen6_emit_pipe_stall(sna);
 
 	gen6_emit_cc(sna, gen6_get_blend(PictOpAdd, true, op->dst.format));
+	gen6_emit_wm_constants(sna, op);
 	gen6_emit_wm(sna,
 		     gen6_choose_composite_kernel(PictOpAdd,
 						  true, true,
 						  op->is_affine),
-		     true);
+		     true,
+		     op->u.gen6.constants);
 
 	OUT_BATCH(GEN6_3DPRIMITIVE |
 		  GEN6_3DPRIMITIVE_VERTEX_SEQUENTIAL |
@@ -1251,9 +1217,11 @@ static int gen6_get_rectangles__flush(struct sna *sna,
 		if (gen6_magic_ca_pass(sna, op)) {
 			gen6_emit_pipe_stall(sna);
 			gen6_emit_cc(sna, GEN6_BLEND(op->u.gen6.flags));
+			gen6_emit_wm_constants(sna, op);
 			gen6_emit_wm(sna,
 				     GEN6_KERNEL(op->u.gen6.flags),
-				     GEN6_VERTEX(op->u.gen6.flags) >> 2);
+				     GEN6_VERTEX(op->u.gen6.flags) >> 2,
+				     op->u.gen6.constants);
 		}
 	}
 
@@ -1588,11 +1556,11 @@ static void gen6_emit_video_state(struct sna *sna,
 				  const struct sna_composite_op *op)
 {
 	struct sna_video_frame *frame = op->priv;
-	uint32_t src_surf_format[6];
-	uint32_t src_surf_base[6];
-	int src_width[6];
-	int src_height[6];
-	int src_pitch[6];
+	uint32_t src_surf_format[3];
+	uint32_t src_surf_base[3];
+	int src_width[3];
+	int src_height[3];
+	int src_pitch[3];
 	uint32_t *binding_table;
 	uint16_t offset;
 	bool dirty;
@@ -1601,20 +1569,18 @@ static void gen6_emit_video_state(struct sna *sna,
 	dirty = gen6_get_batch(sna, op);
 
 	src_surf_base[0] = 0;
-	src_surf_base[1] = 0;
-	src_surf_base[2] = frame->VBufOffset;
-	src_surf_base[3] = frame->VBufOffset;
-	src_surf_base[4] = frame->UBufOffset;
-	src_surf_base[5] = frame->UBufOffset;
+	src_surf_base[1] = frame->VBufOffset;
+	src_surf_base[2] = frame->UBufOffset;
 
 	if (is_planar_fourcc(frame->id)) {
-		for (n = 0; n < 2; n++) {
-			src_surf_format[n] = GEN6_SURFACEFORMAT_R8_UNORM;
-			src_width[n]  = frame->width;
-			src_height[n] = frame->height;
-			src_pitch[n]  = frame->pitch[1];
-		}
-		for (; n < 6; n++) {
+		n_src = is_nv12_fourcc(frame->id) ? 2 : 3;
+
+		src_surf_format[0] = GEN6_SURFACEFORMAT_R8_UNORM;
+		src_width[0]  = frame->width;
+		src_height[0] = frame->height;
+		src_pitch[0]  = frame->pitch[1];
+
+		for (n = 1; n < n_src; n++) {
 			if (is_nv12_fourcc(frame->id))
 				src_surf_format[n] = GEN6_SURFACEFORMAT_R8G8_UNORM;
 			else
@@ -1623,8 +1589,9 @@ static void gen6_emit_video_state(struct sna *sna,
 			src_height[n] = frame->height / 2;
 			src_pitch[n]  = frame->pitch[0];
 		}
-		n_src = 6;
 	} else {
+		n_src = 1;
+
 		if (frame->id == FOURCC_UYVY)
 			src_surf_format[0] = GEN6_SURFACEFORMAT_YCRCB_SWAPY;
 		else
@@ -1633,7 +1600,6 @@ static void gen6_emit_video_state(struct sna *sna,
 		src_width[0]  = frame->width;
 		src_height[0] = frame->height;
 		src_pitch[0]  = frame->pitch[0];
-		n_src = 1;
 	}
 
 	binding_table = gen6_composite_get_binding_table(sna, &offset);
@@ -1664,19 +1630,13 @@ static unsigned select_video_kernel(const struct sna_video *video,
 	case FOURCC_YV12:
 	case FOURCC_I420:
 	case FOURCC_XVMC:
-		return video->colorspace ?
-			GEN6_WM_KERNEL_VIDEO_PLANAR_BT709 :
-			GEN6_WM_KERNEL_VIDEO_PLANAR_BT601;
+		return GEN6_WM_KERNEL_VIDEO_PLANAR;
 
 	case FOURCC_NV12:
-		return video->colorspace ?
-			GEN6_WM_KERNEL_VIDEO_NV12_BT709 :
-			GEN6_WM_KERNEL_VIDEO_NV12_BT601;
+		return GEN6_WM_KERNEL_VIDEO_NV12;
 
 	default:
-		return video->colorspace ?
-			GEN6_WM_KERNEL_VIDEO_PACKED_BT709 :
-			GEN6_WM_KERNEL_VIDEO_PACKED_BT601;
+		return GEN6_WM_KERNEL_VIDEO_PACKED;
 	}
 }
 
@@ -1734,6 +1694,7 @@ gen6_render_video(struct sna *sna,
 			       NO_BLEND,
 			       select_video_kernel(video, frame),
 			       2);
+	tmp.u.gen6.constants = 0;
 	tmp.priv = frame;
 
 	kgem_set_mode(&sna->kgem, KGEM_RENDER, tmp.dst.bo);
@@ -2422,6 +2383,7 @@ gen6_render_composite(struct sna *sna,
 							    tmp->has_component_alpha,
 							    tmp->is_affine),
 			       gen4_choose_composite_emitter(sna, tmp));
+	tmp->u.gen6.constants = 0;
 
 	tmp->blt   = gen6_render_composite_blt;
 	tmp->box   = gen6_render_composite_box;
@@ -2671,6 +2633,7 @@ gen6_render_composite_spans(struct sna *sna,
 			       gen6_get_blend(tmp->base.op, false, tmp->base.dst.format),
 			       GEN6_WM_KERNEL_OPACITY | !tmp->base.is_affine,
 			       gen4_choose_spans_emitter(sna, tmp));
+	tmp->base.u.gen6.constants = 0;
 
 	tmp->box   = gen6_render_composite_spans_box;
 	tmp->boxes = gen6_render_composite_spans_boxes;
@@ -2928,6 +2891,7 @@ fallback_blt:
 	tmp.need_magic_ca_pass = 0;
 
 	tmp.u.gen6.flags = COPY_FLAGS(alu);
+	tmp.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == COPY_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == COPY_VERTEX);
@@ -3102,6 +3066,7 @@ fallback:
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen6.flags = COPY_FLAGS(alu);
+	op->base.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(op->base.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(op->base.u.gen6.flags) == COPY_SAMPLER);
 	assert(GEN6_VERTEX(op->base.u.gen6.flags) == COPY_VERTEX);
@@ -3247,6 +3212,7 @@ gen6_render_fill_boxes(struct sna *sna,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS(op, format);
+	tmp.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
@@ -3427,6 +3393,7 @@ gen6_render_fill(struct sna *sna, uint8_t alu,
 	op->base.floats_per_rect = 6;
 
 	op->base.u.gen6.flags = FILL_FLAGS_NOBLEND;
+	op->base.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(op->base.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(op->base.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(op->base.u.gen6.flags) == FILL_VERTEX);
@@ -3509,6 +3476,7 @@ gen6_render_fill_one(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo,
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
@@ -3596,6 +3564,7 @@ gen6_render_clear(struct sna *sna, PixmapPtr dst, struct kgem_bo *bo)
 	tmp.need_magic_ca_pass = false;
 
 	tmp.u.gen6.flags = FILL_FLAGS_NOBLEND;
+	tmp.u.gen6.constants = 0;
 	assert(GEN6_KERNEL(tmp.u.gen6.flags) == GEN6_WM_KERNEL_NOMASK);
 	assert(GEN6_SAMPLER(tmp.u.gen6.flags) == FILL_SAMPLER);
 	assert(GEN6_VERTEX(tmp.u.gen6.flags) == FILL_VERTEX);
@@ -3746,6 +3715,8 @@ static bool gen6_render_setup(struct sna *sna, int devid)
 	}
 
 	state->cc_blend = gen6_composite_create_blend_state(&general);
+
+	state->constants = sna_render_create_constants(&general);
 
 	state->general_bo = sna_static_stream_fini(sna, &general);
 	return state->general_bo != NULL;

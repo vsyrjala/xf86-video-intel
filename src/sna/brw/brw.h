@@ -8,6 +8,10 @@ bool brw_wm_kernel__affine_mask(struct brw_compile *p, int dispatch_width);
 bool brw_wm_kernel__affine_mask_ca(struct brw_compile *p, int dispatch_width);
 bool brw_wm_kernel__affine_mask_sa(struct brw_compile *p, int dispatch_width);
 
+bool brw_wm_kernel__yuv_packed(struct brw_compile *p, int dispatch_width);
+bool brw_wm_kernel__yuv_planar(struct brw_compile *p, int dispatch_width);
+bool brw_wm_kernel__yuv_nv12(struct brw_compile *p, int dispatch_width);
+
 bool brw_wm_kernel__projective(struct brw_compile *p, int dispatch_width);
 bool brw_wm_kernel__projective_mask(struct brw_compile *p, int dispatch_width);
 bool brw_wm_kernel__projective_mask_ca(struct brw_compile *p, int dispatch_width);
