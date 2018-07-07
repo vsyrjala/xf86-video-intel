@@ -2415,3 +2415,50 @@ sna_render_mark_wedged(struct sna *sna)
 	sna->render.copy_boxes = memcpy_copy_boxes;
 	sna->render.prefer_gpu = 0;
 }
+
+static void sna_yuv_constants(void *p, float kr, float kb,
+			      bool full_range)
+{
+	float *ptr = p;
+	float kg = 1.0f - kr - kb;
+
+	if (full_range) {
+		ptr[0] = 0.0f;
+		ptr[1] = 1.0f;
+		ptr[4] = 255.0f / 128.0f * (1.0f - kr);
+		ptr[5] = -255.0f / 128.0f * (1.0f - kr) * kr / kg;
+		ptr[6] = -255.0f / 128.0f * (1.0f - kb) * kb / kg;
+		ptr[7] = 255.0f / 128.0f * (1.0f - kb);
+	} else {
+		ptr[0] = -16.0f / 255.0f;
+		ptr[1] = 255.0f / (235.0 - 16.0f);
+		ptr[4] = 255.0f / 112.0f * (1.0f - kr);
+		ptr[5] = -255.0f / 112.0f * (1.0f - kr) * kr / kg;
+		ptr[6] = -255.0f / 112.0f * (1.0f - kb) * kb / kg;
+		ptr[7] = 255.0f / 112.0f * (1.0f - kb);
+	}
+}
+
+uint32_t sna_render_create_constants(struct sna_static_stream *stream)
+{
+	float kr, kb;
+	uint8_t *ptr;
+
+	ptr = sna_static_stream_map(stream, 4*64, 64);
+
+	/* BT.601 */
+	kr = 0.299f;
+	kb = 0.114f;
+
+	sna_yuv_constants(&ptr[0*64], kr, kb, false);
+	sna_yuv_constants(&ptr[2*64], kr, kb, true);
+
+	/* BT.709 */
+	kr = 0.2126f;
+	kb = 0.0722f;
+
+	sna_yuv_constants(&ptr[1*64], kr, kb, false);
+	sna_yuv_constants(&ptr[3*64], kr, kb, true);
+
+	return sna_static_stream_offsetof(stream, ptr);
+}
