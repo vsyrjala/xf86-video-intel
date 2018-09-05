@@ -17453,11 +17453,15 @@ sna_flush_callback(CallbackListPtr *list, pointer user_data, pointer call_data)
 {
 	struct sna *sna = user_data;
 
+#if 0 /* XXX requires mesa to implement glXWaitX()! */
 	if (!sna->needs_dri_flush)
 		return;
 
 	sna_accel_flush(sna);
 	sna->needs_dri_flush = false;
+#else
+	sna_accel_flush(sna);
+#endif
 }
 
 static void
