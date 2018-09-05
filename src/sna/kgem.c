@@ -1528,8 +1528,8 @@ static bool test_has_dirtyfb(struct kgem *kgem)
 	create.width = 32;
 	create.height = 32;
 	create.pitch = 4*32;
-	create.bpp = 32;
-	create.depth = 32;
+	create.bpp = 24;
+	create.depth = 32; /* {bpp:24, depth:32} -> x8r8g8b8 */
 	create.handle = gem_create(kgem->fd, 1);
 	if (create.handle == 0)
 		return false;
