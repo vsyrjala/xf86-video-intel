@@ -93,8 +93,6 @@ void *alloca(size_t);
 
 #define FAIL_CURSOR_IOCTL 0
 
-#define COLDPLUG_DELAY_MS 2000
-
 /* Minor discrepancy between 32-bit/64-bit ABI in old kernels */
 union compat_mode_get_connector{
 	struct drm_mode_get_connector conn;
@@ -5698,7 +5696,7 @@ void sna_mode_discover(struct sna *sna, bool tell)
  * list of modes available until the user explicitly requests them. Fake a
  * hotplug event after a second after starting to fill in any missing modes.
  */
-static CARD32 sna_mode_coldplug(OsTimerPtr timer, CARD32 now, void *data)
+CARD32 sna_mode_coldplug(OsTimerPtr timer, CARD32 now, void *data)
 {
 	struct sna *sna = data;
 	ScreenPtr screen = xf86ScrnToScreen(sna->scrn);
@@ -7743,7 +7741,6 @@ bool sna_mode_pre_init(ScrnInfoPtr scrn, struct sna *sna)
 		}
 	}
 	sort_config_outputs(sna);
-	TimerSet(NULL, 0, COLDPLUG_DELAY_MS, sna_mode_coldplug, sna);
 
 	sna_setup_provider(scrn);
 	return scrn->modes != NULL;
