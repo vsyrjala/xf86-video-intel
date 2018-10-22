@@ -228,6 +228,52 @@ update_dst_box_to_crtc_coords(struct sna *sna, xf86CrtcPtr crtc, BoxPtr dstBox)
 	}
 }
 
+static uint32_t ckey_chan(uint32_t value, int weight)
+{
+	return value << 8 >> weight;
+}
+
+static uint32_t ckey_value_chan(uint32_t value, uint32_t mask,
+				int offset, int weight)
+{
+	return ckey_chan((value & mask) >> offset, weight);
+}
+
+static uint32_t ckey_value(struct sna *sna,
+			   struct sna_video *video)
+{
+	ScrnInfoPtr scrn = sna->scrn;
+	uint32_t r, g ,b;
+
+	if (scrn->depth == 8) {
+		r = g = b = video->color_key & 0xff;
+	} else {
+		r = ckey_value_chan(video->color_key, scrn->mask.red,
+				    scrn->offset.red, scrn->weight.red);
+		g = ckey_value_chan(video->color_key, scrn->mask.green,
+				    scrn->offset.green, scrn->weight.green);
+		b = ckey_value_chan(video->color_key, scrn->mask.blue,
+				    scrn->offset.blue, scrn->weight.blue);
+	}
+
+	return r << 16 | g << 8 | b;
+}
+
+static uint32_t ckey_mask_chan(int weight)
+{
+	return ckey_chan((1 << weight) - 1, weight);
+}
+
+static uint32_t ckey_mask(struct sna *sna)
+{
+	ScrnInfoPtr scrn = sna->scrn;
+	uint32_t r = ckey_mask_chan(scrn->weight.red);
+	uint32_t g = ckey_mask_chan(scrn->weight.green);
+	uint32_t b = ckey_mask_chan(scrn->weight.blue);
+
+	return 0x7 << 24 | r << 16 | g << 8 | b;
+}
+
 static bool
 sna_video_sprite_show(struct sna *sna,
 		      struct sna_video *video,
@@ -260,9 +306,9 @@ sna_video_sprite_show(struct sna *sna,
 		     __FUNCTION__, video->color_key));
 
 		set.plane_id = s.plane_id;
-		set.min_value = video->color_key;
-		set.max_value = video->color_key; /* not used for destkey */
-		set.channel_mask = 0x7 << 24 | 0xff << 16 | 0xff << 8 | 0xff << 0;
+		set.min_value = ckey_value(sna, video);
+		set.max_value = 0; /* not used for destkey */
+		set.channel_mask = ckey_mask(sna);
 		set.flags = 0;
 		if (!video->AlwaysOnTop)
 			set.flags |= 1 << 1; /* COLORKEY_DESTINATION */
