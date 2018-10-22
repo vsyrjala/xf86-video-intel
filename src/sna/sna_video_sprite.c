@@ -72,7 +72,7 @@ struct local_mode_set_plane {
 
 static Atom xvColorKey, xvAlwaysOnTop, xvSyncToVblank, xvColorspace;
 
-static XvFormatRec formats[] = { {15}, {16}, {24} };
+static XvFormatRec formats[] = { {8}, {15}, {16}, {24}, {30} };
 static const XvImageRec images[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
 				     XVMC_RGB888 };
 static const XvImageRec images_rgb565[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
