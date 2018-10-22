@@ -354,6 +354,12 @@ void sna_video_textured_setup(struct sna *sna, ScreenPtr screen)
 	struct sna_video *video;
 	int nports, i;
 
+	if (sna->scrn->depth == 8) {
+		xf86DrvMsg(sna->scrn->scrnIndex, X_INFO,
+			   "Textured video not supported in 8bpp mode\n");
+		return;
+	}
+
 	if (!sna->render.video) {
 		xf86DrvMsg(sna->scrn->scrnIndex, X_INFO,
 			   "Textured video not supported on this hardware or backend\n");
