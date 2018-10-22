@@ -39,7 +39,7 @@
 static Atom xvBrightness, xvContrast, xvSyncToVblank, xvColorspace;
 
 static XvFormatRec Formats[] = {
-	{15}, {16}, {24}
+	{15}, {16}, {24}, {30}
 };
 
 static const XvAttributeRec Attributes[] = {
