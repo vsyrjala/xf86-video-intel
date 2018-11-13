@@ -151,6 +151,7 @@ struct sna_composite_op {
 
 		struct {
 			uint32_t flags;
+			uint8_t wm_kernel;
 		} gen9;
 	} u;
 
