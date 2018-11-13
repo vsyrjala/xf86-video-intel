@@ -47,10 +47,10 @@
 #define DRM_FORMAT_YUYV         fourcc_code('Y', 'U', 'Y', 'V') /* [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian */
 #define DRM_FORMAT_UYVY         fourcc_code('U', 'Y', 'V', 'Y') /* [31:0] Y1:Cr0:Y0:Cb0 8:8:8:8 little endian */
 #define DRM_FORMAT_NV12         fourcc_code('N', 'V', '1', '2') /* 2x2 subsampled Cr:Cb plane */
+#define DRM_FORMAT_XYUV8888     fourcc_code('X', 'Y', 'U', 'V') /* [31:0] x:Y:U:V 8:8:8:8 little endian */
 
 #define has_hw_scaling(sna, video) ((sna)->kgem.gen < 071 || \
 				    (sna)->kgem.gen >= 0110)
-
 
 #define LOCAL_IOCTL_MODE_SETPLANE	DRM_IOWR(0xB7, struct local_mode_set_plane)
 struct local_mode_set_plane {
@@ -78,6 +78,8 @@ static const XvImageRec images[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
 static const XvImageRec images_rgb565[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
 					    XVMC_RGB888, XVMC_RGB565 };
 static const XvImageRec images_nv12[] = { XVIMAGE_YUY2, XVIMAGE_UYVY,
+					  XVIMAGE_NV12, XVMC_RGB888, XVMC_RGB565 };
+static const XvImageRec images_ayuv[] = { XVIMAGE_AYUV, XVIMAGE_YUY2, XVIMAGE_UYVY,
 					  XVIMAGE_NV12, XVMC_RGB888, XVMC_RGB565 };
 static const XvAttributeRec attribs[] = {
 	{ XvSettable | XvGettable, 0, 1, (char *)"XV_COLORSPACE" }, /* BT.601, BT.709 */
@@ -409,6 +411,10 @@ sna_video_sprite_show(struct sna *sna,
 			break;
 		case FOURCC_UYVY:
 			f.pixel_format = DRM_FORMAT_UYVY;
+			break;
+		case FOURCC_AYUV:
+			/* i915 doesn't support alpha, so we use XYUV */
+			f.pixel_format = DRM_FORMAT_XYUV8888;
 			break;
 		case FOURCC_YUY2:
 		default:
@@ -751,7 +757,12 @@ static int sna_video_sprite_query(ddQueryImageAttributes_ARGS)
 		tmp *= (*h >> 1);
 		size += tmp;
 		break;
-
+	case FOURCC_AYUV:
+		tmp = *w << 2;
+		if (pitches)
+			pitches[0] = tmp;
+		size = *h * tmp;
+		break;
 	default:
 		*w = (*w + 1) & ~1;
 		*h = (*h + 1) & ~1;
@@ -851,7 +862,10 @@ void sna_video_sprite_setup(struct sna *sna, ScreenPtr screen)
 	adaptor->nAttributes = ARRAY_SIZE(attribs);
 	adaptor->pAttributes = (XvAttributeRec *)attribs;
 
-	if (sna_has_sprite_format(sna, DRM_FORMAT_NV12)) {
+	if (sna_has_sprite_format(sna, DRM_FORMAT_XYUV8888)) {
+		adaptor->pImages = (XvImageRec *)images_ayuv;
+		adaptor->nImages = ARRAY_SIZE(images_ayuv);
+	} else if (sna_has_sprite_format(sna, DRM_FORMAT_NV12)) {
 		adaptor->pImages = (XvImageRec *)images_nv12;
 		adaptor->nImages = ARRAY_SIZE(images_nv12);
 	} else if (sna_has_sprite_format(sna, DRM_FORMAT_RGB565)) {

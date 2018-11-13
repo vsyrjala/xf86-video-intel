@@ -129,6 +129,20 @@ static const uint32_t ps_kernel_planar_bt709[][4] = {
 #include "exa_wm_write.g8b"
 };
 
+static const uint32_t ps_kernel_ayuv_bt601[][4] = {
+#include "exa_wm_src_affine.g8b"
+#include "exa_wm_src_sample_argb_ayuv.g8b"
+#include "exa_wm_yuv_rgb_bt601.g8b"
+#include "exa_wm_write.g8b"
+};
+
+static const uint32_t ps_kernel_ayuv_bt709[][4] = {
+#include "exa_wm_src_affine.g8b"
+#include "exa_wm_src_sample_argb_ayuv.g8b"
+#include "exa_wm_yuv_rgb_bt709.g8b"
+#include "exa_wm_write.g8b"
+};
+
 static const uint32_t ps_kernel_nv12_bt709[][4] = {
 #include "exa_wm_src_affine.g8b"
 #include "exa_wm_src_sample_nv12.g8b"
@@ -177,6 +191,8 @@ static const struct wm_kernel_info {
 	KERNEL(VIDEO_PLANAR_BT709, ps_kernel_planar_bt709, 7),
 	KERNEL(VIDEO_NV12_BT709, ps_kernel_nv12_bt709, 7),
 	KERNEL(VIDEO_PACKED_BT709, ps_kernel_packed_bt709, 2),
+	KERNEL(VIDEO_AYUV_BT601, ps_kernel_ayuv_bt601, 2),
+	KERNEL(VIDEO_AYUV_BT709, ps_kernel_ayuv_bt709, 2),
 	KERNEL(VIDEO_RGB, ps_kernel_rgb, 2),
 #endif
 };
@@ -3853,6 +3869,8 @@ static void gen9_emit_video_state(struct sna *sna,
 			src_surf_format[0] = SURFACEFORMAT_B8G8R8X8_UNORM;
 		else if (frame->id == FOURCC_UYVY)
 			src_surf_format[0] = SURFACEFORMAT_YCRCB_SWAPY;
+		else if (is_ayuv_fourcc(frame->id))
+			src_surf_format[0] = SURFACEFORMAT_B8G8R8X8_UNORM;
 		else
 			src_surf_format[0] = SURFACEFORMAT_YCRCB_NORMAL;
 
@@ -3902,6 +3920,11 @@ static unsigned select_video_kernel(const struct sna_video *video,
 	case FOURCC_RGB888:
 	case FOURCC_RGB565:
 		return GEN9_WM_KERNEL_VIDEO_RGB;
+
+	case FOURCC_AYUV:
+		return video->colorspace ?
+			GEN9_WM_KERNEL_VIDEO_AYUV_BT709 :
+			GEN9_WM_KERNEL_VIDEO_AYUV_BT601;
 
 	default:
 		return video->colorspace ?
