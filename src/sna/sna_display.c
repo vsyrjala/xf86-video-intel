@@ -5254,6 +5254,20 @@ sna_output_add(struct sna *sna, unsigned id, unsigned serial)
 			if (strcmp(output->name, name) == 0) {
 				assert(output->scrn == scrn);
 				assert(output->funcs == &sna_output_funcs);
+
+				/*
+				 * If the old output is still in use, tell
+				 * the kernel to switch it off so we can
+				 * move its resources over to the new id.
+				 */
+				if (output->crtc) {
+					struct drm_mode_crtc arg = {
+						.crtc_id = __sna_crtc_id(to_sna_crtc(output->crtc)),
+					};
+					drmIoctl(sna->kgem.fd, DRM_IOCTL_MODE_SETCRTC, &arg);
+					output->crtc = NULL;
+				}
+
 				sna_output_destroy(output);
 				goto reset;
 			}
