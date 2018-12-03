@@ -5470,6 +5470,9 @@ output_retrain_link(struct sna *sna, struct sna_output *output)
 	int crtc_x = crtc->offset & 0xffff;
 	int crtc_y = crtc->offset >> 16;
 
+	if (!crtc->bo)
+		return false;
+
 	return sna_crtc_flip(sna, crtc, crtc->bo, crtc_x, crtc_y);
 }
 
