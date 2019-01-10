@@ -59,7 +59,17 @@
 #include "intel_options.h"
 
 #include <xf86xv.h>
+#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#include <sys/types.h>
+#include <sys/endian.h>
+#ifdef __OpenBSD__
+#define bswap_32 swap32
+#else
+#define bswap_32 bswap32
+#endif
+#else
 #include <byteswap.h>
+#endif
 
 #ifdef SNA_XVMC
 #define _SNA_XVMC_SERVER_
