@@ -802,9 +802,14 @@ sna_handle_uevents(int fd, void *closure)
 		struct udev_device *dev;
 		dev_t devnum;
 
+		errno = 0;
 		dev = udev_monitor_receive_device(sna->uevent_monitor);
-		if (dev == NULL)
+		if (dev == NULL) {
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+
 			break;
+		}
 
 		devnum = udev_device_get_devnum(dev);
 		if (memcmp(&s.st_rdev, &devnum, sizeof(dev_t)) == 0) {
