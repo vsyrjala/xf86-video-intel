@@ -6286,23 +6286,15 @@ sna_realize_cursor(xf86CursorInfoPtr info, CursorPtr cursor)
 	return NULL;
 }
 
-static void enable_fb_access(ScrnInfoPtr scrn, int state)
-{
-	scrn->EnableDisableFBAccess(
-#ifdef XF86_HAS_SCRN_CONV
-				    scrn,
-#else
-				    scrn->scrnIndex,
-#endif
-				    state);
-}
-
-
 static void __restore_swcursor(ScrnInfoPtr scrn)
 {
+	struct sna *sna = to_sna(scrn);
+
 	DBG(("%s: attempting to restore SW cursor\n", __FUNCTION__));
-	enable_fb_access(scrn, FALSE);
-	enable_fb_access(scrn, TRUE);
+	xf86CursorResetCursor(scrn->pScreen);
+
+	/* Try to switch back to the HW cursor on the next cursor update */
+	sna->cursor.disable = false;
 
 	RemoveBlockAndWakeupHandlers((void *)__restore_swcursor,
 				     (void *)NoopDDA,
