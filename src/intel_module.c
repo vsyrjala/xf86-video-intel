@@ -692,6 +692,7 @@ static Bool intel_pci_probe(DriverPtr		driver,
 		case PCI_CHIP_I815:
 			if (!hosted())
 				break;
+			/* fall through */
 		default:
 			return FALSE;
 		}
