@@ -121,6 +121,7 @@
 
 #if XFONT2_CLIENT_FUNCS_VERSION >= 1
 #define AllocateFontPrivateIndex() xfont2_allocate_font_private_index()
+#undef FontSetPrivate
 #define FontSetPrivate(font, idx, data) xfont2_font_set_private(font, idx, data)
 #endif
 
