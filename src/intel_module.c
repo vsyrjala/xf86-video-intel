@@ -388,7 +388,7 @@ static const struct pci_id_match intel_device_match[] = {
 	INTEL_VGA_DEVICE(PCI_MATCH_ANY, &intel_generic_info),
 #endif
 
-	{ 0, 0, 0 },
+	{},
 };
 
 void
