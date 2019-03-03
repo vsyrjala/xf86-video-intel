@@ -7316,7 +7316,7 @@ next_crtc:
 }
 
 static const xf86CrtcConfigFuncsRec sna_mode_funcs = {
-	sna_mode_resize
+	.resize = sna_mode_resize,
 };
 
 static void set_size_range(struct sna *sna)
@@ -7784,7 +7784,7 @@ static bool has_flip__async(struct sna *sna)
 	struct local_get_cap {
 		uint64_t name;
 		uint64_t value;
-	} cap = { DRM_CAP_ASYNC_PAGE_FLIP };
+	} cap = { .name = DRM_CAP_ASYNC_PAGE_FLIP, };
 
 	if (sna->flags & SNA_NO_FLIP)
 		return false;
@@ -9682,7 +9682,7 @@ fixup_flip:
 			     __FUNCTION__, __sna_crtc_id(crtc), crtc->flip_bo->handle, crtc->flip_bo->active_scanout, crtc->flip_serial));
 
 			{
-				struct drm_i915_gem_busy busy = { flip_bo->handle };
+				struct drm_i915_gem_busy busy = { .handle = flip_bo->handle, };
 				if (drmIoctl(sna->kgem.fd, DRM_IOCTL_I915_GEM_BUSY, &busy) == 0) {
 					if (busy.busy) {
 						int mode = KGEM_RENDER;

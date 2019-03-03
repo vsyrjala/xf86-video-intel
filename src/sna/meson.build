@@ -129,7 +129,6 @@ sna = static_library('sna',
 		     link_with : [ brw, fb, ],
 		     include_directories : inc,
 		     c_args : [
-		       '-Wno-missing-field-initializers',
 		       '-Wno-unused-but-set-variable',
 		       '-Wno-expansion-to-defined',
 		       '-Wno-shift-negative-value',
