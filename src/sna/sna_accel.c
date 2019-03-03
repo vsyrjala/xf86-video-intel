@@ -17518,7 +17518,11 @@ static bool has_offload_slaves(struct sna *sna)
 	PixmapDirtyUpdatePtr dirty;
 
 	xorg_list_for_each_entry(dirty, &screen->pixmap_dirty_list, ent) {
+#ifdef HAS_DIRTYTRACKING_DRAWABLE_SRC
+		assert(dirty->src == &sna->front->drawable);
+#else
 		assert(dirty->src == sna->front);
+#endif
 		if (RegionNotEmpty(DamageRegion(dirty->damage)))
 			return true;
 	}
@@ -17679,7 +17683,11 @@ static void sna_accel_post_damage(struct sna *sna)
 		if (RegionNil(damage))
 			continue;
 
-		src = dirty->src;
+#ifdef HAS_DIRTYTRACKING_DRAWABLE_SRC
+		assert(dirty->src->type == DRAWABLE_PIXMAP);
+#endif
+
+		src = (PixmapPtr)dirty->src;
 		dst = dirty->slave_dst->master_pixmap;
 
 		region.extents.x1 = dirty->x;
@@ -17930,9 +17938,15 @@ migrate_dirty_tracking(PixmapPtr old_front, PixmapPtr new_front)
 	PixmapDirtyUpdatePtr dirty, safe;
 
 	xorg_list_for_each_entry_safe(dirty, safe, &screen->pixmap_dirty_list, ent) {
+#ifdef HAS_DIRTYTRACKING_DRAWABLE_SRC
+		assert(dirty->src == &old_front->drawable);
+		if (dirty->src != &old_front->drawable)
+			continue;
+#else
 		assert(dirty->src == old_front);
 		if (dirty->src != old_front)
 			continue;
+#endif
 
 		DamageUnregister(&dirty->src->drawable, dirty->damage);
 		DamageDestroy(dirty->damage);
@@ -17947,7 +17961,11 @@ migrate_dirty_tracking(PixmapPtr old_front, PixmapPtr new_front)
 		}
 
 		DamageRegister(&new_front->drawable, dirty->damage);
+#ifdef HAS_DIRTYTRACKING_DRAWABLE_SRC
+		dirty->src = &new_front->drawable;
+#else
 		dirty->src = new_front;
+#endif
 	}
 #endif
 }
