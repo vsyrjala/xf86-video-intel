@@ -25,6 +25,7 @@ fb = static_library('fb',
 		      pixman,
 		    ],
 		    c_args : [
+		      '-Wno-implicit-fallthrough',
 		      '-Wno-unused-parameter',
 		      '-Wno-sign-compare',
 		    ],
