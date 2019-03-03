@@ -8148,13 +8148,9 @@ kgem_replace_bo(struct kgem *kgem,
 	}
 
 	br13 |= 0xcc << 16;
-	switch (bpp) {
-	default:
-	case 32: br00 |= BLT_WRITE_ALPHA | BLT_WRITE_RGB;
-		 br13 |= 1 << 25; /* RGB8888 */
-	case 16: br13 |= 1 << 24; /* RGB565 */
-	case 8: break;
-	}
+	br13 |= sna_br13_color_depth(bpp);
+	if (bpp == 32)
+		br00 |= BLT_WRITE_ALPHA | BLT_WRITE_RGB;
 
 	b = kgem->batch + kgem->nbatch;
 	if (kgem->gen >= 0100) {
