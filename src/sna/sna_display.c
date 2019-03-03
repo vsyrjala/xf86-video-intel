@@ -8309,7 +8309,7 @@ static bool sna_emit_wait_for_scanline_hsw(struct sna *sna,
 	sna->kgem.nbatch += 17;
 
 	switch (pipe) {
-	default: assert(0);
+	default: assert(0); /* fall through */
 	case 0: event = 1 << 0; break;
 	case 1: event = 1 << 8; break;
 	case 2: event = 1 << 14; break;
@@ -8325,7 +8325,7 @@ static bool sna_emit_wait_for_scanline_hsw(struct sna *sna,
 	/* The documentation says that the LOAD_SCAN_LINES command
 	 * always comes in pairs. Don't ask me why. */
 	switch (pipe) {
-	default: assert(0);
+	default: assert(0); /* fall through */
 	case 0: event = 0 << 19; break;
 	case 1: event = 1 << 19; break;
 	case 2: event = 4 << 19; break;
@@ -8334,7 +8334,7 @@ static bool sna_emit_wait_for_scanline_hsw(struct sna *sna,
 	b[9] = b[7] = (y1 << 16) | (y2-1);
 
 	switch (pipe) {
-	default: assert(0);
+	default: assert(0); /* fall through */
 	case 0: event = 1 << 0; break;
 	case 1: event = 1 << 8; break;
 	case 2: event = 1 << 14; break;
@@ -8374,6 +8374,7 @@ static bool sna_emit_wait_for_scanline_ivb(struct sna *sna,
 	switch (pipe) {
 	default:
 		assert(0);
+		/* fall through */
 	case 0:
 		event = 1 << (full_height ? 3 : 0);
 		break;

@@ -680,6 +680,7 @@ sna_dri2_create_buffer(DrawablePtr draw,
 			    (sna->flags & (SNA_LINEAR_FB | SNA_NO_WAIT | SNA_NO_FLIP)) == 0)
 				flags |= CREATE_SCANOUT;
 		}
+		/* fall through */
 	case DRI2BufferBackRight:
 	case DRI2BufferFrontRight:
 	case DRI2BufferFakeFrontLeft:
@@ -2944,6 +2945,7 @@ static void sna_dri2_flip_event(struct sna_dri2_event *flip)
 			DBG(("%s: triple buffer swap complete, unblocking client\n", __FUNCTION__));
 			frame_swap_complete(flip, DRI2_FLIP_COMPLETE);
 		}
+		/* fall through */
 	case FLIP_COMPLETE:
 		assert(!flip->signal);
 		if (sna->dri2.flip_pending) {

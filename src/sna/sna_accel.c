@@ -4955,6 +4955,7 @@ try_upload__inplace(PixmapPtr pixmap, RegionRec *region,
 	case I915_TILING_X:
 		if (!sna->kgem.memcpy_to_tiled_x)
 			break;
+		/* fall through */
 	default:
 		if (try_upload__tiled_x(pixmap, region, x, y, w, h, bits, stride))
 			goto done;
@@ -8719,6 +8720,7 @@ sna_copy_plane_blt(DrawablePtr source, DrawablePtr drawable, GCPtr gc,
 				}
 			default:
 				assert(0);
+				/* fall through */
 			case 8:
 				{
 					uint8_t *src = src_pixmap->devPrivate.ptr;
@@ -10123,6 +10125,7 @@ spans_fallback:
 			switch (gc->lineStyle) {
 			default:
 				assert(0);
+				/* fall through */
 			case LineSolid:
 				if (gc->lineWidth == 0) {
 					DBG(("%s: miZeroLine\n", __FUNCTION__));
