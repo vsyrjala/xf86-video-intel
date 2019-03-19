@@ -10,6 +10,7 @@ shared_library('I810XvMC',
 	       ],
 	       c_args : [
 		 '-Wno-unused-parameter',
+		 '-Wno-strict-aliasing',
 		 '-Wno-sign-compare',
 	       ],
 	       install : true)
