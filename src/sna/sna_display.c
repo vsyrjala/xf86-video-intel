@@ -8034,7 +8034,7 @@ sna_covering_crtc(struct sna *sna, const BoxRec *box, xf86CrtcPtr desired)
 		     __FUNCTION__, c,
 		     crtc->bounds.x1, crtc->bounds.y1,
 		     crtc->bounds.x2, crtc->bounds.y2));
-		if (*(const uint64_t *)box == *(uint64_t *)&crtc->bounds) {
+		if (!memcmp(box, &crtc->bounds, sizeof(*box))) {
 			DBG(("%s: box exactly matches crtc [%d]\n",
 			     __FUNCTION__, c));
 			return crtc;
