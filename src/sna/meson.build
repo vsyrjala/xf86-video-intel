@@ -138,5 +138,6 @@ sna = static_library('sna',
 		       '-Wno-unused-variable',
 		       '-Wno-sign-compare',
 		       '-Wno-type-limits',
+		       '-Wno-clobbered',
 		     ],
 		     install : false)
