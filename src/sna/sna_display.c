@@ -215,6 +215,7 @@ struct sna_crtc {
 	uint32_t rotation;
 	struct plane {
 		uint32_t id;
+		uint32_t type;
 		struct {
 			uint32_t prop;
 			uint32_t supported;
@@ -3391,33 +3392,40 @@ void sna_crtc_set_sprite_colorspace(xf86CrtcPtr crtc,
 				 p->color_encoding.values[colorspace]);
 }
 
-static int plane_details(struct sna *sna, struct plane *p)
+typedef void (*parse_prop_func)(struct sna *sna,
+				struct drm_mode_get_property *prop,
+				uint64_t value,
+				void *data);
+static void parse_props(struct sna *sna,
+		       uint32_t obj_type, uint32_t obj_id,
+		       parse_prop_func parse_prop,
+		       void *data)
 {
 #define N_STACK_PROPS 32 /* must be a multiple of 2 */
 	struct local_mode_obj_get_properties arg;
 	uint64_t stack[N_STACK_PROPS + N_STACK_PROPS/2];
 	uint64_t *values = stack;
 	uint32_t *props = (uint32_t *)(values + N_STACK_PROPS);
-	int i, type = DRM_PLANE_TYPE_OVERLAY;
+	int i;
 
 	memset(&arg, 0, sizeof(struct local_mode_obj_get_properties));
-	arg.obj_id = p->id;
-	arg.obj_type = LOCAL_MODE_OBJECT_PLANE;
+	arg.obj_id = obj_id;
+	arg.obj_type = obj_type;
 
 	arg.props_ptr = (uintptr_t)props;
 	arg.prop_values_ptr = (uintptr_t)values;
 	arg.count_props = N_STACK_PROPS;
 
 	if (drmIoctl(sna->kgem.fd, LOCAL_IOCTL_MODE_OBJ_GETPROPERTIES, &arg))
-		return -1;
+		return;
 
 	DBG(("%s: object %d (type %x) has %d props\n", __FUNCTION__,
-	     p->id, LOCAL_MODE_OBJECT_PLANE, arg.count_props));
+	     obj_id, obj_type, arg.count_props));
 
 	if (arg.count_props > N_STACK_PROPS) {
 		values = malloc(2*sizeof(uint64_t)*arg.count_props);
 		if (values == NULL)
-			return -1;
+			return;
 
 		props = (uint32_t *)(values + arg.count_props);
 
@@ -3444,25 +3452,46 @@ static int plane_details(struct sna *sna, struct plane *p)
 		DBG(("%s: prop[%d] .id=%ld, .name=%s, .flags=%x, .value=%ld\n", __FUNCTION__, i,
 		     (long)props[i], prop.name, (unsigned)prop.flags, (long)values[i]));
 
-		if (strcmp(prop.name, "type") == 0) {
-			type = values[i];
-		} else if (prop_is_rotation(&prop)) {
-			parse_rotation_prop(sna, p, &prop, values[i]);
-		} else if (prop_is_color_encoding(&prop)) {
-			parse_color_encoding_prop(sna, p, &prop, values[i]);
-		}
+		parse_prop(sna, &prop, values[i], data);
 	}
+
+	if (values != stack)
+		free(values);
+
+#undef N_STACK_PROPS
+}
+
+static bool prop_is_type(const struct drm_mode_get_property *prop)
+{
+	return prop_has_type_and_name(prop, 3, "type");
+}
+
+static void plane_parse_prop(struct sna *sna,
+			     struct drm_mode_get_property *prop,
+			     uint64_t value, void *data)
+{
+	struct plane *p = data;
+
+	if (prop_is_type(prop))
+		p->type = value;
+	else if (prop_is_rotation(prop))
+		parse_rotation_prop(sna, p, prop, value);
+	else if (prop_is_color_encoding(prop))
+		parse_color_encoding_prop(sna, p, prop, value);
+}
+
+static int plane_details(struct sna *sna, struct plane *p)
+{
+	parse_props(sna, LOCAL_MODE_OBJECT_PLANE, p->id,
+		    plane_parse_prop, p);
 
 	p->rotation.supported &= DBG_NATIVE_ROTATION;
 	if (!xf86ReturnOptValBool(sna->Options, OPTION_ROTATION, TRUE))
 		p->rotation.supported = RR_Rotate_0;
 
-	if (values != stack)
-		free(values);
+	DBG(("%s: plane=%d type=%d\n", __FUNCTION__, p->id, p->type));
 
-	DBG(("%s: plane=%d type=%d\n", __FUNCTION__, p->id, type));
-	return type;
-#undef N_STACK_PROPS
+	return p->type;
 }
 
 static void add_sprite_plane(struct sna_crtc *crtc,
