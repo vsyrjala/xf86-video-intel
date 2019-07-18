@@ -2162,11 +2162,6 @@ try_blt(struct sna *sna,
 {
 	struct kgem_bo *bo;
 
-	if (sna->kgem.mode == KGEM_BLT) {
-		DBG(("%s: already performing BLT\n", __FUNCTION__));
-		goto execute;
-	}
-
 	if (too_large(width, height)) {
 		DBG(("%s: operation too large for 3D pipe (%d, %d)\n",
 		     __FUNCTION__, width, height));
@@ -2207,7 +2202,7 @@ try_blt(struct sna *sna,
 			goto execute;
 	}
 
-	if (sna->kgem.ring == KGEM_BLT) {
+	if (sna->kgem.mode == KGEM_BLT) {
 		DBG(("%s: already performing BLT\n", __FUNCTION__));
 		goto execute;
 	}
@@ -2875,9 +2870,6 @@ prefer_blt_copy(struct sna *sna,
 		struct kgem_bo *dst_bo,
 		unsigned flags)
 {
-	if (sna->kgem.mode == KGEM_BLT)
-		return true;
-
 	assert((flags & COPY_SYNC) == 0);
 
 	if (untiled_tlb_miss(src_bo) ||
@@ -2887,7 +2879,7 @@ prefer_blt_copy(struct sna *sna,
 	if (flags & COPY_DRI && !sna->kgem.has_semaphores)
 		return false;
 
-	if (force_blt_ring(sna, dst_bo))
+	if (force_blt_ring(sna, dst_bo, src_bo))
 		return true;
 
 	if ((flags & COPY_SMALL ||
