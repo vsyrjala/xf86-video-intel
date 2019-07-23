@@ -3314,10 +3314,6 @@ sna_dri2_schedule_swap(ClientPtr client, DrawablePtr draw, DRI2BufferPtr front,
 	assert(get_private(front)->refcnt);
 	assert(get_private(back)->refcnt);
 
-	assert(get_private(back)->bo != get_private(front)->bo);
-	assert(get_private(front)->bo->refcnt);
-	assert(get_private(back)->bo->refcnt);
-
 	if (get_private(front)->pixmap != get_drawable_pixmap(draw)) {
 		DBG(("%s: decoupled DRI2 front pixmap=%ld, actual pixmap=%ld\n",
 		     __FUNCTION__,
@@ -3330,6 +3326,10 @@ sna_dri2_schedule_swap(ClientPtr client, DrawablePtr draw, DRI2BufferPtr front,
 		DBG(("%s: stale back buffer\n", __FUNCTION__));
 		goto skip;
 	}
+
+	assert(get_private(back)->bo != get_private(front)->bo);
+	assert(get_private(front)->bo->refcnt);
+	assert(get_private(back)->bo->refcnt);
 
 	assert(get_private(front)->bo->active_scanout);
 	assert(!get_private(back)->bo->active_scanout);
