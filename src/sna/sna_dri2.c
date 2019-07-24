@@ -198,6 +198,7 @@ struct dri2_window {
 	int64_t msc_delta;
 	struct list cache;
 	uint32_t cache_size;
+	bool cache_scanout;
 };
 
 static struct dri2_window *dri2_window(WindowPtr win)
@@ -229,8 +230,9 @@ sna_dri2_get_back(struct sna *sna,
 	struct kgem_bo *bo;
 	struct dri_bo *c;
 	uint32_t name;
-	int flags;
+	bool scanout;
 	bool reuse;
+	int flags;
 
 	DBG(("%s: draw size=%dx%d, back buffer handle=%d size=%dx%d, is-scanout? %d, active?=%d, pitch=%d, front pitch=%d\n",
 	     __FUNCTION__, draw->width, draw->height,
@@ -241,8 +243,9 @@ sna_dri2_get_back(struct sna *sna,
 	     back->pitch, front_pitch(draw)));
 	assert(priv);
 
+	scanout = use_scanout(sna, draw, priv);
 	size = draw->height << 16 | draw->width;
-	if (size != priv->cache_size) {
+	if (size != priv->cache_size || scanout != priv->cache_scanout) {
 		while (!list_is_empty(&priv->cache)) {
 			c = list_first_entry(&priv->cache, struct dri_bo, link);
 			list_del(&c->link);
@@ -254,11 +257,12 @@ sna_dri2_get_back(struct sna *sna,
 			free(c);
 		}
 		priv->cache_size = size;
+		priv->cache_scanout = scanout;
 	}
 
 	reuse = size == get_private(back)->size;
 	if (reuse)
-		reuse = get_private(back)->bo->scanout == use_scanout(sna, draw, priv);
+		reuse = get_private(back)->bo->scanout >= scanout;
 	DBG(("%s: reuse backbuffer? %d\n", __FUNCTION__, reuse));
 	if (reuse) {
 		bo = get_private(back)->bo;
