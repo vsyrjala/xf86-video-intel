@@ -131,7 +131,6 @@ sna = static_library('sna',
 		     c_args : [
 		       '-Wno-unused-but-set-variable',
 		       '-Wno-expansion-to-defined',
-		       '-Wno-shift-negative-value',
 		       '-Wno-maybe-uninitialized',
 		       '-Wno-unused-parameter',
 		       '-Wno-unused-function',
