@@ -7441,7 +7441,6 @@ static bool crtc_get_gamma_legacy(xf86CrtcPtr crtc,
 
 static void crtc_init_gamma(xf86CrtcPtr crtc)
 {
-	struct sna *sna = to_sna(crtc->scrn);
 	struct sna_crtc *sna_crtc = to_sna_crtc(crtc);
 	uint16_t *gamma;
 	int size;
@@ -7459,11 +7458,10 @@ static void crtc_init_gamma(xf86CrtcPtr crtc)
 	if (gamma == NULL)
 		gamma = malloc(3 * size * sizeof(uint16_t));
 	if (gamma) {
-		struct drm_mode_crtc_lut lut;
-		bool gamma_set;
 		uint16_t *red = gamma;
 		uint16_t *green = gamma + size;
 		uint16_t *blue = gamma + 2 * size;
+		bool gamma_set;
 
 		if (sna_crtc->gamma_lut_size)
 			gamma_set = crtc_get_gamma_lut(crtc, red,
