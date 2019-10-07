@@ -465,7 +465,7 @@ fallback:
 	}
 
 	br13 = 0xcc << 16;
-	br13 |= sna_br13_color_depth(cpp * 4);
+	br13 |= sna_br13_color_depth(cpp * 8);
 	if (cpp == 4)
 		cmd |= BLT_WRITE_ALPHA | BLT_WRITE_RGB;
 
