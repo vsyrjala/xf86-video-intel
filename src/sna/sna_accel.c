@@ -5302,6 +5302,8 @@ inline static void blt_done(struct sna *sna)
 		DBG(("%s: flushing BLT operation on empty ring\n",
 		     __FUNCTION__));
 		_kgem_submit(&sna->kgem);
+	} else {
+		sna->kgem.batch[sna->kgem.nbatch++] = MI_ARB_CHECK;
 	}
 }
 

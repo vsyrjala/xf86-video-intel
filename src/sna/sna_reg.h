@@ -14,6 +14,7 @@
 /* broadwater flush bits */
 #define BRW_MI_GLOBAL_SNAPSHOT_RESET   (1 << 3)
 
+#define MI_ARB_CHECK		(0x5 << 23)
 #define MI_BATCH_BUFFER_END	(0xA << 23)
 
 /* Noop */
