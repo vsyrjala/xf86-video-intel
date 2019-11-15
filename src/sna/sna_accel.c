@@ -17686,10 +17686,10 @@ static void sna_accel_post_damage(struct sna *sna)
 			continue;
 
 #ifdef HAS_DIRTYTRACKING_DRAWABLE_SRC
-		assert(dirty->src->type == DRAWABLE_PIXMAP);
+		src = get_drawable_pixmap(dirty->src);
+#else
+		src = dirty->src;
 #endif
-
-		src = (PixmapPtr)dirty->src;
 		dst = dirty->slave_dst->master_pixmap;
 
 		region.extents.x1 = dirty->x;
