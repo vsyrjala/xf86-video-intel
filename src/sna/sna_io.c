@@ -491,7 +491,7 @@ fallback:
 			nbox_this_time = tmp_nbox;
 			rem = kgem_batch_space(kgem);
 			if (10*nbox_this_time > rem)
-				nbox_this_time = rem / 8;
+				nbox_this_time = rem / 10;
 			if (2*nbox_this_time > KGEM_RELOC_SIZE(kgem) - kgem->nreloc)
 				nbox_this_time = (KGEM_RELOC_SIZE(kgem) - kgem->nreloc) / 2;
 			assert(nbox_this_time);
@@ -1061,7 +1061,7 @@ tile:
 			nbox_this_time = nbox;
 			rem = kgem_batch_space(kgem);
 			if (10*nbox_this_time > rem)
-				nbox_this_time = rem / 8;
+				nbox_this_time = rem / 10;
 			if (2*nbox_this_time > KGEM_RELOC_SIZE(kgem) - kgem->nreloc)
 				nbox_this_time = (KGEM_RELOC_SIZE(kgem) - kgem->nreloc) / 2;
 			assert(nbox_this_time);
@@ -1563,7 +1563,7 @@ tile:
 			nbox_this_time = nbox;
 			rem = kgem_batch_space(kgem);
 			if (10*nbox_this_time > rem)
-				nbox_this_time = rem / 8;
+				nbox_this_time = rem / 10;
 			if (2*nbox_this_time > KGEM_RELOC_SIZE(kgem) - kgem->nreloc)
 				nbox_this_time = (KGEM_RELOC_SIZE(kgem) - kgem->nreloc) / 2;
 			assert(nbox_this_time);
