@@ -470,12 +470,7 @@ static bool enable_tear_free(struct sna *sna)
 	if (sna->kgem.has_full_ppgtt)
 		return true;
 
-	/*
-	 * Under certain conditions, we should enable TearFree by default,
-	 * for example when the hardware requires pageflipping to run within
-	 * its power/performance budget.
-	 */
-	if (sna_mode_wants_tear_free(sna))
+	if (!sna->kgem.has_dirtyfb)
 		return true;
 
 	return ENABLE_TEAR_FREE;
@@ -675,7 +670,7 @@ static Bool sna_pre_init(ScrnInfoPtr scrn, int probe)
 	}
 	scrn->currentMode = scrn->modes;
 
-	if (!setup_tear_free(sna) && sna_mode_wants_tear_free(sna))
+	if (!setup_tear_free(sna))
 		sna->kgem.needs_dirtyfb = sna->kgem.has_dirtyfb;
 
 	xf86SetGamma(scrn, zeros);
