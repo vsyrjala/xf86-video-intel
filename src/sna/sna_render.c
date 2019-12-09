@@ -32,7 +32,6 @@
 #include "sna.h"
 #include "sna_render.h"
 #include "sna_render_inline.h"
-#include "sna_reg.h"
 #include "fb/fbpict.h"
 
 #define NO_REDIRECT 0
@@ -2130,8 +2129,6 @@ sna_render_composite_redirect_done(struct sna *sna,
 
 		kgem_bo_destroy(&sna->kgem, op->dst.bo);
 	}
-
-	batch_emit(sna, MI_ARB_CHECK);
 }
 
 static bool
