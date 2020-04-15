@@ -605,7 +605,7 @@ sna_dri2_create_buffer(DrawablePtr draw,
 	struct sna_dri2_private *private;
 	PixmapPtr pixmap;
 	struct kgem_bo *bo;
-	unsigned bpp = format ?: draw->bitsPerPixel;
+	unsigned bpp = format ? BitsPerPixel(format) : draw->bitsPerPixel;
 	unsigned flags = CREATE_EXACT;
 	uint32_t size;
 
