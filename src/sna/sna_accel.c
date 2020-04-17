@@ -2119,6 +2119,11 @@ static inline bool operate_inplace(struct sna_pixmap *priv, unsigned flags)
 	if (!USE_INPLACE)
 		return false;
 
+	if (flags & __MOVE_FORCE) {
+		DBG(("%s: no, inplace operation denied by force\n", __FUNCTION__));
+		return false;
+	}
+
 	if ((flags & MOVE_INPLACE_HINT) == 0) {
 		DBG(("%s: no, inplace operation not suitable\n", __FUNCTION__));
 		return false;
@@ -2327,7 +2332,7 @@ skip_inplace_map:
 
 	sna_pixmap_unmap(pixmap, priv);
 
-	if (USE_INPLACE &&
+	if (USE_INPLACE && !(flags & __MOVE_FORCE) &&
 	    (flags & MOVE_WRITE ? (void *)priv->gpu_bo : (void *)priv->gpu_damage) && priv->cpu_damage == NULL &&
 	    priv->gpu_bo->tiling == I915_TILING_NONE &&
 	    (flags & MOVE_READ || kgem_bo_can_map__cpu(&sna->kgem, priv->gpu_bo, flags & MOVE_WRITE)) &&
@@ -17409,7 +17414,10 @@ void sna_accel_flush(struct sna *sna)
 			     priv->pixmap->refcnt));
 			assert(!priv->flush);
 			ret = sna_pixmap_move_to_cpu(priv->pixmap,
-						     MOVE_READ | MOVE_WRITE);
+						     MOVE_READ |
+						     MOVE_WRITE |
+						     MOVE_WHOLE_HINT |
+						     __MOVE_FORCE);
 			assert(!ret || priv->gpu_bo == NULL);
 			if (priv->pixmap->refcnt == 0) {
 				sna_damage_destroy(&priv->cpu_damage);
