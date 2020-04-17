@@ -18115,9 +18115,6 @@ static bool sna_option_accel_none(struct sna *sna)
 	if (!xf86ReturnOptValBool(sna->Options, OPTION_ACCEL_ENABLE, TRUE))
 		return true;
 
-	if (sna->kgem.gen >= 0120)
-		return true;
-
 	if (!intel_option_cast_to_bool(sna->Options,
 				       OPTION_ACCEL_METHOD,
 				       !IS_DEFAULT_ACCEL_METHOD(NOACCEL)))
