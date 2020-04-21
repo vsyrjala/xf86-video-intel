@@ -334,6 +334,7 @@ static const SymTabRec intel_chipsets[] = {
 	{0x3E9C, "HD Graphics"},
 	{0x3E9B, "HD Graphics"},
 	{0x3E94, "HD Graphics"},
+	{0x3E98, "HD Graphics"},
 	{0x3EA1, "HD Graphics"},
 	{0x3EA4, "HD Graphics"},
 	{0x3EA0, "HD Graphics"},
