@@ -2960,6 +2960,9 @@ prefer_blt_copy(struct sna *sna,
 	if (sna->kgem.mode == KGEM_BLT)
 		return true;
 
+	if (sna->info->gen == 075) /* avoid clear-residuals context overhead */
+		return true;
+
 	assert((flags & COPY_SYNC) == 0);
 
 	if (untiled_tlb_miss(src_bo) ||
