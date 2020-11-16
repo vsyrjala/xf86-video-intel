@@ -624,7 +624,7 @@ redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty)
 	RegionRec pixregion;
 	int was_blocked;
 
-	PixmapRegionInit(&pixregion, PixmapDirtyDst(dirty)->master_pixmap);
+	PixmapRegionInit(&pixregion, PixmapDirtyPrimary(dirty));
 	RegionTranslate(&pixregion, dirty->x, dirty->y);
 	RegionIntersect(&pixregion, &pixregion, DamageRegion(dirty->damage));
 	RegionTranslate(&pixregion, -dirty->x, -dirty->y);
@@ -634,13 +634,13 @@ redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty)
 	if (was_blocked)
 		return;
 
-	PixmapRegionInit(&pixregion, PixmapDirtyDst(dirty)->master_pixmap);
+	PixmapRegionInit(&pixregion, PixmapDirtyPrimary(dirty));
 	PixmapSyncDirtyHelper(dirty, &pixregion);
 	RegionUninit(&pixregion);
 
         intel_flush(intel);
 	if (!intel->has_prime_vmap_flush) {
-		drm_intel_bo *bo = intel_uxa_get_pixmap_bo(PixmapDirtyDst(dirty)->master_pixmap);
+		drm_intel_bo *bo = intel_uxa_get_pixmap_bo(PixmapDirtyPrimary(dirty));
 		was_blocked = xf86BlockSIGIO();
 		drm_intel_bo_map(bo, FALSE);
 		drm_intel_bo_unmap(bo);

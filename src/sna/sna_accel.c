@@ -17696,7 +17696,7 @@ static void sna_accel_post_damage(struct sna *sna)
 #else
 		src = dirty->src;
 #endif
-		dst = PixmapDirtyDst(dirty)->master_pixmap;
+		dst = PixmapDirtyPrimary(dirty);
 
 		region.extents.x1 = dirty->x;
 		region.extents.x2 = dirty->x + dst->drawable.width;
