@@ -1944,6 +1944,19 @@ static uint64_t get_gtt_size(int fd)
 	return aperture.aper_size;
 }
 
+static int get_gtt_type(int fd)
+{
+        struct drm_i915_getparam p;
+        int val = 0;
+
+        memset(&p, 0, sizeof(p));
+        p.param = I915_PARAM_HAS_ALIASING_PPGTT;
+        p.value = &val;
+
+	drmIoctl(fd, DRM_IOCTL_I915_GETPARAM, &p);
+	return val;
+}
+
 void kgem_init(struct kgem *kgem, int fd, struct pci_device *dev, unsigned gen)
 {
 	size_t totalram;
@@ -2107,6 +2120,8 @@ void kgem_init(struct kgem *kgem, int fd, struct pci_device *dev, unsigned gen)
 	DBG(("%s: cpu bo enabled %d: llc? %d, set-cache-level? %d, userptr? %d\n", __FUNCTION__,
 	     !DBG_NO_CPU && (kgem->has_llc | kgem->has_userptr | kgem->has_caching),
 	     kgem->has_llc, kgem->has_caching, kgem->has_userptr));
+
+	kgem->has_full_ppgtt = get_gtt_type(fd) > 1;
 
 	gtt_size = get_gtt_size(fd);
 	kgem->aperture_total = gtt_size;
