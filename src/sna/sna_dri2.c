@@ -1963,8 +1963,8 @@ sna_dri2_flip(struct sna_dri2_event *info)
 	}
 
 	assert(!info->queued);
-	if (!sna_page_flip(info->sna, bo, sna_dri2_flip_handler,
-			   info->type == FLIP_ASYNC ? NULL : info))
+	if (!sna_page_flip(info->sna, bo, info->type == FLIP_ASYNC,
+			   sna_dri2_flip_handler, info))
 		return false;
 
 	DBG(("%s: queued flip=%p\n", __FUNCTION__, info->type == FLIP_ASYNC ? NULL : info));
@@ -2855,7 +2855,8 @@ sna_dri2_flip_continue(struct sna_dri2_event *info)
 		return false;
 
 	assert(!info->queued);
-	if (!sna_page_flip(info->sna, bo, sna_dri2_flip_handler, info))
+	if (!sna_page_flip(info->sna, bo, false,
+			   sna_dri2_flip_handler, info))
 		return false;
 
 	DBG(("%s: queued flip=%p\n", __FUNCTION__, info));
