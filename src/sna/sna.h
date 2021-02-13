@@ -491,6 +491,7 @@ typedef void (*sna_flip_handler_t)(struct drm_event_vblank *e,
 extern bool sna_needs_page_flip(struct sna *sna, struct kgem_bo *bo);
 extern int sna_page_flip(struct sna *sna,
 			 struct kgem_bo *bo,
+			 bool async,
 			 sna_flip_handler_t handler,
 			 void *data);
 

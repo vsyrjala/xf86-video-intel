@@ -675,34 +675,6 @@ sna_present_check_flip(RRCrtcPtr crtc,
 	return TRUE;
 }
 
-static Bool
-flip__async(struct sna *sna,
-	    RRCrtcPtr crtc,
-	    uint64_t event_id,
-	    uint64_t target_msc,
-	    struct kgem_bo *bo)
-{
-	DBG(("%s(pipe=%d, event=%lld, handle=%d)\n",
-	     __FUNCTION__,
-	     pipe_from_crtc(crtc),
-	     (long long)event_id,
-	     bo->handle));
-
-	if (!sna_page_flip(sna, bo, NULL, NULL)) {
-		DBG(("%s: async pageflip failed\n", __FUNCTION__));
-		present_info.capabilities &= ~PresentCapabilityAsync;
-		return FALSE;
-	}
-
-	DBG(("%s: pipe=%d tv=%ld.%06d msc=%lld (target=%lld), event=%lld complete\n", __FUNCTION__,
-	     pipe_from_crtc(crtc),
-	     (long)(gettime_ust64() / 1000000), (int)(gettime_ust64() % 1000000),
-	     crtc ? (long long)sna_crtc_last_swap(crtc->devPrivate)->msc : 0LL,
-	     (long long)target_msc, (long long)event_id));
-	present_event_notify(event_id, gettime_ust64(), target_msc);
-	return TRUE;
-}
-
 static void
 present_flip_handler(struct drm_event_vblank *event, void *data)
 {
@@ -748,11 +720,12 @@ present_flip_handler(struct drm_event_vblank *event, void *data)
 }
 
 static Bool
-flip(struct sna *sna,
-     RRCrtcPtr crtc,
-     uint64_t event_id,
-     uint64_t target_msc,
-     struct kgem_bo *bo)
+do_flip(struct sna *sna,
+	RRCrtcPtr crtc,
+	uint64_t event_id,
+	uint64_t target_msc,
+	struct kgem_bo *bo,
+	bool async)
 {
 	struct sna_present_event *info;
 
@@ -774,7 +747,7 @@ flip(struct sna *sna,
 	info->target_msc = target_msc;
 	info->active = false;
 
-	if (!sna_page_flip(sna, bo, present_flip_handler, info)) {
+	if (!sna_page_flip(sna, bo, async, present_flip_handler, info)) {
 		DBG(("%s: pageflip failed\n", __FUNCTION__));
 		info_free(info);
 		return FALSE;
@@ -782,6 +755,26 @@ flip(struct sna *sna,
 
 	add_to_crtc_vblank(info, 1);
 	return TRUE;
+}
+
+static Bool
+flip__async(struct sna *sna,
+	    RRCrtcPtr crtc,
+	    uint64_t event_id,
+	    uint64_t target_msc,
+	    struct kgem_bo *bo)
+{
+	return do_flip(sna, crtc, event_id, target_msc, bo, true);
+}
+
+static Bool
+flip(struct sna *sna,
+     RRCrtcPtr crtc,
+     uint64_t event_id,
+     uint64_t target_msc,
+     struct kgem_bo *bo)
+{
+	return do_flip(sna, crtc, event_id, target_msc, bo, false);
 }
 
 static struct kgem_bo *

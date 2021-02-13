@@ -7143,6 +7143,7 @@ bool sna_needs_page_flip(struct sna *sna, struct kgem_bo *bo)
 int
 sna_page_flip(struct sna *sna,
 	      struct kgem_bo *bo,
+	      bool async,
 	      sna_flip_handler_t handler,
 	      void *data)
 {
@@ -7162,7 +7163,7 @@ sna_page_flip(struct sna *sna,
 	assert(!sna->mode.hidden);
 	assert(sna->scrn->vtSema);
 
-	if ((sna->flags & (data ? SNA_HAS_FLIP : SNA_HAS_ASYNC_FLIP)) == 0)
+	if ((sna->flags & (async ? SNA_HAS_ASYNC_FLIP : SNA_HAS_FLIP)) == 0)
 		return 0;
 
 	kgem_bo_submit(&sna->kgem, bo);
@@ -7186,7 +7187,7 @@ sna_page_flip(struct sna *sna,
 		assert(crtc->flip_bo == NULL);
 
 		assert_crtc_fb(sna, crtc);
-		if (data == NULL && crtc->bo == bo)
+		if (async && crtc->bo == bo)
 			goto next_crtc;
 
 		arg.crtc_id = __sna_crtc_id(crtc);
@@ -7224,7 +7225,7 @@ update_scanout:
 				crtc->bo = kgem_bo_reference(bo);
 				crtc->bo->active_scanout++;
 
-				if (data == NULL)
+				if (async)
 					goto next_crtc;
 
 				/* queue a flip in order to send the event */
@@ -7235,13 +7236,10 @@ update_scanout:
 		/* Only the reference crtc will finally deliver its page flip
 		 * completion event. All other crtc's events will be discarded.
 		 */
-		if (data) {
-			arg.user_data = (uintptr_t)crtc;
-			arg.flags = DRM_MODE_PAGE_FLIP_EVENT;
-		} else {
-			arg.user_data = 0;
-			arg.flags = DRM_MODE_PAGE_FLIP_ASYNC;
-		}
+		arg.user_data = (uintptr_t)crtc;
+		arg.flags = DRM_MODE_PAGE_FLIP_EVENT;
+		if (async)
+			arg.flags |= DRM_MODE_PAGE_FLIP_ASYNC;
 		arg.reserved = 0;
 
 retry_flip:
@@ -7281,7 +7279,7 @@ retry_flip:
 error:
 			xf86DrvMsg(sna->scrn->scrnIndex, X_ERROR,
 					"page flipping failed, on CRTC:%d (pipe=%d), disabling %s page flips\n",
-					__sna_crtc_id(crtc), __sna_crtc_pipe(crtc), data ? "synchronous": "asynchronous");
+					__sna_crtc_id(crtc), __sna_crtc_pipe(crtc), async ? "asynchronous": "synchronous");
 
 			if (count || crtc->bo == bo)
 				sna_mode_restore(sna);
